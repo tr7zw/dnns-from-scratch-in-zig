@@ -21,7 +21,6 @@ pub fn Layer(
         pub fn forward(
             self: *Self,
             inputs: []const f64,
-            //allocator: std.mem.Allocator,
         ) []f64 {
             std.debug.assert(inputs.len == inputSize * batchSize);
             var b: usize = 0;
@@ -58,14 +57,6 @@ pub fn Layer(
                             (grads[b * outputSize + o] * self.last_inputs[b * inputSize + i]) / @as(f64, @floatFromInt(batchSize));
                         input_grads[b * inputSize + i] +=
                             grads[b * outputSize + o] * self.weights[i * outputSize + o];
-                        //std.debug.print("batch size: {any} , i: {any} , outputSize: {any} , o: {any} , wg: {any} , ig: {any}\n", .{
-                        //    batchSize,
-                        //    i,
-                        //    outputSize,
-                        //    o,
-                        //    weight_grads[i * outputSize + o],
-                        //    input_grads[b * inputSize + i],
-                        //});
                     }
                 }
             }
@@ -80,7 +71,6 @@ pub fn Layer(
         }
 
         pub fn init() Self {
-            //var memory = try allocator.alloc(f64, I * O);
             var weights: [inputSize * outputSize]f64 = [1]f64{0} ** (inputSize * outputSize);
             var prng = std.rand.DefaultPrng.init(123);
             var w: usize = 0;
@@ -92,9 +82,5 @@ pub fn Layer(
                 .last_inputs = undefined,
             };
         }
-
-        //pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
-        //    allocator.free(self.weights);
-        //}
     };
 }

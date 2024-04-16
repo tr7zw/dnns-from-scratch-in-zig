@@ -162,10 +162,10 @@ test "Forward once" {
         -4.5751484711660004e-02,
     };
     i = 0;
-    std.debug.print("\n output: {any} ,\n expected: {any}\n", .{
-        grads.weight_grads,
-        expected_layer_weight_grads,
-    });
+    //std.debug.print("\n output: {any} ,\n expected: {any}\n", .{
+    //    grads.weight_grads,
+    //    expected_layer_weight_grads,
+    //});
     while (i < 4) : (i += 1) {
         try std.testing.expectApproxEqRel(
             expected_layer_weight_grads[i],
@@ -183,10 +183,10 @@ test "Forward once" {
     };
     i = 0;
 
-    std.debug.print("output: {any} , expected: {any}\n", .{
-        grads.input_grads,
-        expected_layer_input_grads,
-    });
+    //std.debug.print("output: {any} , expected: {any}\n", .{
+    //    grads.input_grads,
+    //    expected_layer_input_grads,
+    //});
 
     while (i < 4) : (i += 1) {
         //std.debug.print("output: {any} , expected: {any}\n", .{

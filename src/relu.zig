@@ -16,12 +16,15 @@ pub fn Relu(size: usize) type {
 
         pub fn forward(self: *Self, inputs: []f64) []f64 {
             std.debug.assert(inputs.len == size);
-
-            var outputs: [size]f64 = undefined;
+            var outputs: [size]f64 = [_]f64{0} ** size;
 
             var i: usize = 0;
             while (i < inputs.len) : (i += 1) {
-                outputs[i] = activation(inputs[i]);
+                if (inputs[i] < 0) {
+                    outputs[i] = 0.01 * inputs[i];
+                } else {
+                    outputs[i] = inputs[i];
+                }
             }
             self.last_inputs = inputs;
             return &outputs;
@@ -29,10 +32,14 @@ pub fn Relu(size: usize) type {
 
         pub fn backwards(self: *Self, grads: []f64) []f64 {
             std.debug.assert(grads.len == size);
-            var outputs: [size]f64 = undefined;
+            var outputs: [size]f64 = [_]f64{0} ** size;
             var i: usize = 0;
             while (i < self.last_inputs.len) : (i += 1) {
-                outputs[i] = activation(grads[i]);
+                if (self.last_inputs[i] < 0) {
+                    outputs[i] = 0.01 * grads[i];
+                } else {
+                    outputs[i] = grads[i];
+                }
             }
             return &outputs;
         }

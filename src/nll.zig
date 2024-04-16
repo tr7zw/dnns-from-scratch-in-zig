@@ -4,18 +4,18 @@ pub fn NLL(
     comptime inputSize: usize,
     comptime batchSize: usize,
 ) type {
-    const NLLOuput = struct {
+    const NLLOutput = struct {
         loss: []f64,
         input_grads: []f64,
         const Self = @This();
     };
 
     return struct {
-        var sum_e: [batchSize]f64 = undefined;
-        var loss: [batchSize]f64 = undefined;
-        var input_grads: [batchSize * inputSize]f64 = undefined;
+        var sum_e: [batchSize]f64 = [1]f64{0} ** (batchSize);
+        var loss: [batchSize]f64 = [1]f64{0} ** (batchSize);
+        var input_grads: [batchSize * inputSize]f64 = [1]f64{0} ** (batchSize * inputSize);
 
-        pub fn nll(inputs: []f64, targets: []u8) NLLOuput {
+        pub fn nll(inputs: []f64, targets: []u8) NLLOutput {
             var b: usize = 0;
             while (b < batchSize) : (b += 1) {
                 var sum: f64 = 0;
@@ -42,7 +42,7 @@ pub fn NLL(
                 }
             }
 
-            return NLLOuput{ .loss = &loss, .input_grads = &input_grads };
+            return NLLOutput{ .loss = &loss, .input_grads = &input_grads };
         }
     };
 }
