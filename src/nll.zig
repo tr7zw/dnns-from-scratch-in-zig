@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const GiveLoss = true;
+
 pub fn NLL(
     comptime inputSize: usize,
     comptime batchSize: usize,
@@ -28,11 +30,9 @@ pub fn NLL(
 
             b = 0;
             while (b < batchSize) : (b += 1) {
-                loss[b] = -1 * @log(std.math.exp(inputs[b * inputSize + targets[b]]) / sum_e[b]);
-            }
-
-            b = 0;
-            while (b < batchSize) : (b += 1) {
+                if (GiveLoss) {
+                    loss[b] = -1 * @log(std.math.exp(inputs[b * inputSize + targets[b]]) / sum_e[b]);
+                }
                 var i: usize = 0;
                 while (i < inputSize) : (i += 1) {
                     input_grads[b * inputSize + i] = std.math.exp(inputs[b * inputSize + i]) / sum_e[b];

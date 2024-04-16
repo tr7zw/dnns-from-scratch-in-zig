@@ -6,14 +6,6 @@ pub fn Relu(size: usize) type {
 
         const Self = @This();
 
-        fn activation(in: f64) f64 {
-            if (in < 0) {
-                return 0.01 * in;
-            } else {
-                return in;
-            }
-        }
-
         pub fn forward(self: *Self, inputs: []f64) []f64 {
             std.debug.assert(inputs.len == size);
             var outputs: [size]f64 = [_]f64{0} ** size;

@@ -9,9 +9,17 @@ const INPUT_SIZE: u32 = 784;
 const OUTPUT_SIZE: u32 = 10;
 const LAYER_SIZE: u32 = 100;
 
-const BATCH_SIZE: u32 = 2000;
+const BATCH_SIZE: u32 = 1000;
 
 const EPOCHS: u32 = 8;
+
+fn averageArray(arr: []const f64) f64 {
+    var sum: f64 = 0;
+    for (arr) |elem| {
+        sum += elem;
+    }
+    return sum / @as(f64, @floatFromInt(arr.len));
+}
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -52,19 +60,15 @@ pub fn main() !void {
             const outputs2 = relu1.forward(outputs1);
             const outputs3 = layer2.forward(outputs2);
             const loss = loss_function.nll(outputs3, targets);
+            //std.debug.print("average loss for batch: {any}, avg gradient {}\n", .{ averageArray(loss.loss), averageArray(loss.loss) });
 
+            std.debug.print("average loss for batch: {any}, avg gradient {}\n", .{ averageArray(loss.loss), averageArray(loss.input_grads) });
             // Update network
             const grads1 = layer2.backwards(loss.input_grads);
             const grads2 = relu1.backwards(grads1.input_grads);
             const grads3 = layer1.backwards(grads2);
             layer1.applyGradients(grads3.weight_grads);
             layer2.applyGradients(grads1.weight_grads);
-            //if (i % 100 == 0) {
-            //    std.debug.print("  batch grads1: {}\n", .{grads1});
-            //    std.debug.print("  batch grads2: {any}\n", .{grads2});
-            //    std.debug.print("  batch grads3: {}\n", .{grads3});
-            //}
-            // Free memory
         }
 
         // Do validation
@@ -195,12 +199,6 @@ test "Forward once" {
         //});
         try std.testing.expectApproxEqRel(grads.input_grads[i], expected_layer_input_grads[i], 0.000000001);
     }
-
-    //allocator.free(grads.weight_grads);
-    //allocator.free(grads.input_grads);
-
-    //allocator.free(loss.loss);
-    //allocator.free(loss.input_grads);
 }
 
 //test "Train Memory Leak" {
