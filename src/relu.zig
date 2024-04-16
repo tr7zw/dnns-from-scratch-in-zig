@@ -1,39 +1,40 @@
 const std = @import("std");
 
-pub const Relu = struct {
-    last_inputs: []f64,
-    const Self = @This();
+pub fn Relu(size: usize) type {
+    return struct {
+        last_inputs: []f64 = undefined,
 
-    pub fn new() Self {
-        return Self{
-            .last_inputs = undefined,
-        };
-    }
+        const Self = @This();
 
-    pub fn forward(self: *Self, inputs: []f64, allocator: std.mem.Allocator) ![]f64 {
-        var outputs = try allocator.alloc(f64, inputs.len);
-        var i: usize = 0;
-        while (i < inputs.len) : (i += 1) {
-            if (inputs[i] < 0) {
-                outputs[i] = 0.01 * inputs[i];
+        fn activation(in: f64) f64 {
+            if (in < 0) {
+                return 0.01 * in;
             } else {
-                outputs[i] = inputs[i];
+                return in;
             }
         }
-        self.last_inputs = inputs;
-        return outputs;
-    }
 
-    pub fn backwards(self: *Self, grads: []f64, allocator: std.mem.Allocator) ![]f64 {
-        var outputs = try allocator.alloc(f64, grads.len);
-        var i: usize = 0;
-        while (i < self.last_inputs.len) : (i += 1) {
-            if (self.last_inputs[i] < 0) {
-                outputs[i] = 0.01 * grads[i];
-            } else {
-                outputs[i] = grads[i];
+        pub fn forward(self: *Self, inputs: []f64) []f64 {
+            std.debug.assert(inputs.len == size);
+
+            var outputs: [size]f64 = undefined;
+
+            var i: usize = 0;
+            while (i < inputs.len) : (i += 1) {
+                outputs[i] = activation(inputs[i]);
             }
+            self.last_inputs = inputs;
+            return &outputs;
         }
-        return outputs;
-    }
-};
+
+        pub fn backwards(self: *Self, grads: []f64) []f64 {
+            std.debug.assert(grads.len == size);
+            var outputs: [size]f64 = undefined;
+            var i: usize = 0;
+            while (i < self.last_inputs.len) : (i += 1) {
+                outputs[i] = activation(grads[i]);
+            }
+            return &outputs;
+        }
+    };
+}

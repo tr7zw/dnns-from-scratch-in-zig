@@ -16,7 +16,7 @@ const Data = struct {
 };
 
 pub fn readMnist(allocator: std.mem.Allocator) !Data {
-    const train_images_path: []const u8 = "data/train-images-idx3-ubyte";
+    const train_images_path: []const u8 = "data/train-images.idx3-ubyte";
     const train_images_u8 = try readIdxFile(train_images_path, 16, allocator);
     defer allocator.free(train_images_u8);
     var train_images = try allocator.alloc(f64, 784 * 60000);
@@ -26,10 +26,10 @@ pub fn readMnist(allocator: std.mem.Allocator) !Data {
         train_images[i] = x / 255;
     }
 
-    const train_labels_path: []const u8 = "data/train-labels-idx1-ubyte";
+    const train_labels_path: []const u8 = "data/train-labels.idx1-ubyte";
     const train_labels = try readIdxFile(train_labels_path, 8, allocator);
 
-    const test_images_path: []const u8 = "data/t10k-images-idx3-ubyte";
+    const test_images_path: []const u8 = "data/t10k-images.idx3-ubyte";
     const test_images_u8 = try readIdxFile(test_images_path, 16, allocator);
     defer allocator.free(test_images_u8);
     var test_images = try allocator.alloc(f64, 784 * 10000);
@@ -39,7 +39,7 @@ pub fn readMnist(allocator: std.mem.Allocator) !Data {
         test_images[i] = x / 255;
     }
 
-    const test_labels_path: []const u8 = "data/t10k-labels-idx1-ubyte";
+    const test_labels_path: []const u8 = "data/t10k-labels.idx1-ubyte";
     const test_labels = try readIdxFile(test_labels_path, 8, allocator);
 
     return Data{ .train_images = train_images, .train_labels = train_labels, .test_images = test_images, .test_labels = test_labels };
