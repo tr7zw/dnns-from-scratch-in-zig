@@ -9,7 +9,7 @@ const INPUT_SIZE: u32 = 784;
 const OUTPUT_SIZE: u32 = 10;
 const LAYER_SIZE: u32 = 100;
 
-const BATCH_SIZE: u32 = 1000;
+const BATCH_SIZE: u32 = 2000;
 
 const EPOCHS: u32 = 8;
 
@@ -62,7 +62,7 @@ pub fn main() !void {
             const loss = loss_function.nll(outputs3, targets);
             //std.debug.print("average loss for batch: {any}, avg gradient {}\n", .{ averageArray(loss.loss), averageArray(loss.loss) });
 
-            std.debug.print("average loss for batch: {any}, avg gradient {}\n", .{ averageArray(loss.loss), averageArray(loss.input_grads) });
+            std.debug.print("average loss for batch: {any}, avg gradient {any}\n", .{ averageArray(loss.loss), averageArray(loss.input_grads) });
             // Update network
             const grads1 = layer2.backwards(loss.input_grads);
             const grads2 = relu1.backwards(grads1.input_grads);

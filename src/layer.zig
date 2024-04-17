@@ -70,8 +70,8 @@ pub fn Layer(
             }
         }
 
+        var weights: [inputSize * outputSize]f64 = [1]f64{0} ** (inputSize * outputSize);
         pub fn init() Self {
-            var weights: [inputSize * outputSize]f64 = [1]f64{0} ** (inputSize * outputSize);
             var prng = std.rand.DefaultPrng.init(123);
             var w: usize = 0;
             while (w < inputSize * outputSize) : (w += 1) {

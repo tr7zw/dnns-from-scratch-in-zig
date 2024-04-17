@@ -6,34 +6,34 @@ pub fn Relu(size: usize) type {
 
         const Self = @This();
 
+        var fwd_out: [size]f64 = [_]f64{0} ** size;
         pub fn forward(self: *Self, inputs: []f64) []f64 {
             std.debug.assert(inputs.len == size);
-            var outputs: [size]f64 = [_]f64{0} ** size;
 
             var i: usize = 0;
             while (i < inputs.len) : (i += 1) {
                 if (inputs[i] < 0) {
-                    outputs[i] = 0.01 * inputs[i];
+                    fwd_out[i] = 0.01 * inputs[i];
                 } else {
-                    outputs[i] = inputs[i];
+                    fwd_out[i] = inputs[i];
                 }
             }
             self.last_inputs = inputs;
-            return &outputs;
+            return &fwd_out;
         }
 
+            var bkw_out: [size]f64 = [_]f64{0} ** size;
         pub fn backwards(self: *Self, grads: []f64) []f64 {
             std.debug.assert(grads.len == size);
-            var outputs: [size]f64 = [_]f64{0} ** size;
             var i: usize = 0;
             while (i < self.last_inputs.len) : (i += 1) {
                 if (self.last_inputs[i] < 0) {
-                    outputs[i] = 0.01 * grads[i];
+                    bkw_out[i] = 0.01 * grads[i];
                 } else {
-                    outputs[i] = grads[i];
+                    bkw_out[i] = grads[i];
                 }
             }
-            return &outputs;
+            return &bkw_out;
         }
     };
 }
