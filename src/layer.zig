@@ -5,23 +5,26 @@ pub fn Layer(
     comptime outputSize: usize,
     comptime batchSize: usize,
 ) type {
-    const LayerGrads = struct {
-        weight_grads: []f64,
-        input_grads: []f64,
-        const Self = @This();
-    };
+    //const LayerGrads = struct {
+    //    weight_grads: []f64,
+    //    input_grads: []f64,
+    //    const Self = @This();
+    //};
 
     return struct {
         weights: [inputSize * outputSize]f64,
         last_inputs: []const f64,
-        const Self = @This();
+        outputs: [batchSize * outputSize]f64,
+        weight_grads: [inputSize * outputSize]f64, // = [1]f64{0} ** (inputSize * outputSize);
+        input_grads: [batchSize * inputSize]f64, //= [1]f64{0} ** (batchSize * inputSize);
 
-        var outputs: [batchSize * outputSize]f64 = [1]f64{0} ** (batchSize * outputSize);
+        const Self = @This();
+        //var outputs: [batchSize * outputSize]f64 = [1]f64{0} ** (batchSize * outputSize);
 
         pub fn forward(
             self: *Self,
             inputs: []const f64,
-        ) []f64 {
+        ) *Self {
             std.debug.assert(inputs.len == inputSize * batchSize);
             var b: usize = 0;
             while (b < batchSize) : (b += 1) {
@@ -32,19 +35,17 @@ pub fn Layer(
                     while (i < inputSize) : (i += 1) {
                         sum += inputs[b * inputSize + i] * self.weights[outputSize * i + o];
                     }
-                    outputs[b * outputSize + o] = sum;
+                    self.outputs[b * outputSize + o] = sum;
                 }
             }
             self.last_inputs = inputs;
-            return &outputs;
+            return self;
         }
-        var weight_grads: [inputSize * outputSize]f64 = [1]f64{0} ** (inputSize * outputSize);
-        var input_grads: [batchSize * inputSize]f64 = [1]f64{0} ** (batchSize * inputSize);
 
         pub fn backwards(
             self: *Self,
             grads: []f64,
-        ) LayerGrads {
+        ) *Self {
             std.debug.assert(self.last_inputs.len == inputSize * batchSize);
 
             var b: usize = 0;
@@ -53,14 +54,14 @@ pub fn Layer(
                 while (i < inputSize) : (i += 1) {
                     var o: usize = 0;
                     while (o < outputSize) : (o += 1) {
-                        weight_grads[i * outputSize + o] +=
+                        self.weight_grads[i * outputSize + o] +=
                             (grads[b * outputSize + o] * self.last_inputs[b * inputSize + i]) / @as(f64, @floatFromInt(batchSize));
-                        input_grads[b * inputSize + i] +=
+                        self.input_grads[b * inputSize + i] +=
                             grads[b * outputSize + o] * self.weights[i * outputSize + o];
                     }
                 }
             }
-            return LayerGrads{ .weight_grads = weight_grads[0..], .input_grads = input_grads[0..] };
+            return self;
         }
 
         pub fn applyGradients(self: *Self, grads: []f64) void {
@@ -70,8 +71,8 @@ pub fn Layer(
             }
         }
 
-        var weights: [inputSize * outputSize]f64 = [1]f64{0} ** (inputSize * outputSize);
         pub fn init() Self {
+            var weights: [inputSize * outputSize]f64 = [1]f64{0} ** (inputSize * outputSize);
             var prng = std.rand.DefaultPrng.init(123);
             var w: usize = 0;
             while (w < inputSize * outputSize) : (w += 1) {
@@ -79,7 +80,10 @@ pub fn Layer(
             }
             return Self{
                 .weights = weights,
-                .last_inputs = undefined,
+                .last_inputs = undefined, //[1]f64{0} ** (batchSize * inputSize),
+                .outputs = [1]f64{0} ** (batchSize * outputSize),
+                .weight_grads = [1]f64{0} ** (inputSize * outputSize),
+                .input_grads = [1]f64{0} ** (batchSize * inputSize),
             };
         }
     };

@@ -6,18 +6,13 @@ pub fn NLL(
     comptime inputSize: usize,
     comptime batchSize: usize,
 ) type {
-    const NLLOutput = struct {
-        loss: []f64,
-        input_grads: []f64,
-        const Self = @This();
-    };
-
     return struct {
-        var sum_e: [batchSize]f64 = [1]f64{0} ** (batchSize);
-        var loss: [batchSize]f64 = [1]f64{0} ** (batchSize);
-        var input_grads: [batchSize * inputSize]f64 = [1]f64{0} ** (batchSize * inputSize);
+        loss: [batchSize]f64, // = [1]f64{0} ** (batchSize);
+        input_grads: [batchSize * inputSize]f64, // = [1]f64{0} ** (batchSize * inputSize);
+        const Self = @This();
 
-        pub fn nll(inputs: []f64, targets: []u8) NLLOutput {
+        pub fn nll(self: *Self, inputs: []f64, targets: []u8) *Self {
+            var sum_e: [batchSize]f64 = [1]f64{0} ** (batchSize);
             var b: usize = 0;
             while (b < batchSize) : (b += 1) {
                 var sum: f64 = 0;
@@ -31,18 +26,18 @@ pub fn NLL(
             b = 0;
             while (b < batchSize) : (b += 1) {
                 if (GiveLoss) {
-                    loss[b] = -1 * @log(std.math.exp(inputs[b * inputSize + targets[b]]) / sum_e[b]);
+                    self.loss[b] = -1 * @log(std.math.exp(inputs[b * inputSize + targets[b]]) / sum_e[b]);
                 }
                 var i: usize = 0;
                 while (i < inputSize) : (i += 1) {
-                    input_grads[b * inputSize + i] = std.math.exp(inputs[b * inputSize + i]) / sum_e[b];
+                    self.input_grads[b * inputSize + i] = std.math.exp(inputs[b * inputSize + i]) / sum_e[b];
                     if (i == targets[b]) {
-                        input_grads[b * inputSize + i] -= 1;
+                        self.input_grads[b * inputSize + i] -= 1;
                     }
                 }
             }
 
-            return NLLOutput{ .loss = &loss, .input_grads = &input_grads };
+            return self;
         }
     };
 }
