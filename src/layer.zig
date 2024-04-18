@@ -5,12 +5,9 @@ pub fn Layer(
     comptime outputSize: usize,
     comptime batchSize: usize,
 ) type {
-    //const LayerGrads = struct {
-    //    weight_grads: []f64,
-    //    input_grads: []f64,
-    //    const Self = @This();
-    //};
-
+    if (batchSize == 0) {
+        @compileError("0 is an invalid batch size, try 1 or larger");
+    }
     return struct {
         weights: [inputSize * outputSize]f64,
         last_inputs: []const f64,
@@ -24,7 +21,7 @@ pub fn Layer(
         pub fn forward(
             self: *Self,
             inputs: []const f64,
-        ) *Self {
+        ) void {
             std.debug.assert(inputs.len == inputSize * batchSize);
             var b: usize = 0;
             while (b < batchSize) : (b += 1) {
@@ -39,13 +36,12 @@ pub fn Layer(
                 }
             }
             self.last_inputs = inputs;
-            return self;
         }
 
         pub fn backwards(
             self: *Self,
             grads: []f64,
-        ) *Self {
+        ) void {
             std.debug.assert(self.last_inputs.len == inputSize * batchSize);
 
             var b: usize = 0;
@@ -61,7 +57,6 @@ pub fn Layer(
                     }
                 }
             }
-            return self;
         }
 
         pub fn applyGradients(self: *Self, grads: []f64) void {

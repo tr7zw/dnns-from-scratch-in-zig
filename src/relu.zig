@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub fn Relu(size: usize) type {
     return struct {
-        last_inputs: [size]f64 = undefined,
+        last_inputs: []const f64 = undefined,
         fwd_out: [size]f64,
         bkw_out: [size]f64,
         const Self = @This();
@@ -15,7 +15,7 @@ pub fn Relu(size: usize) type {
             };
         }
 
-        pub fn forward(self: *Self, inputs: [size]f64) *Self {
+        pub fn forward(self: *Self, inputs: []const f64) void {
             //std.debug.assert(inputs.len == size);
 
             var i: usize = 0;
@@ -27,10 +27,9 @@ pub fn Relu(size: usize) type {
                 }
             }
             self.last_inputs = inputs;
-            return self;
         }
 
-        pub fn backwards(self: *Self, grads: []f64) *Self {
+        pub fn backwards(self: *Self, grads: []f64) void {
             std.debug.assert(grads.len == size);
             var i: usize = 0;
             while (i < self.last_inputs.len) : (i += 1) {
@@ -40,7 +39,6 @@ pub fn Relu(size: usize) type {
                     self.bkw_out[i] = grads[i];
                 }
             }
-            return self;
         }
     };
 }

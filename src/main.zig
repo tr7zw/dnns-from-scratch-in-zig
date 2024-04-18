@@ -9,7 +9,7 @@ const INPUT_SIZE: u32 = 784;
 const OUTPUT_SIZE: u32 = 10;
 const LAYER_SIZE: u32 = 100;
 
-const BATCH_SIZE: u32 = 100;
+const BATCH_SIZE: u32 = 5;
 
 const EPOCHS: u32 = 8;
 
@@ -47,22 +47,54 @@ pub fn main() !void {
             const targets = mnist_data.train_labels[i * BATCH_SIZE .. (i + 1) * BATCH_SIZE];
 
             // Go forward and get loss
-            const outputs1 = layer1.forward(inputs);
-            const outputs2 = relu1.forward(outputs1.outputs);
-            const outputs3 = layer2.forward(&outputs2.fwd_out);
-            loss = loss.nll(&outputs3.outputs, targets).*;
+            layer1.forward(inputs);
+            relu1.forward(&layer1.outputs);
+            layer2.forward(&relu1.fwd_out);
+            //if (i % (10000 / BATCH_SIZE) == 0) {
+            //    std.debug.print("outputs:\n {any},\n", .{
+            //        layer2.outputs,
+            //    });
+            //}
+            loss.nll(&layer2.outputs, targets) catch |err| {
+                const ct = std.time.milliTimestamp();
+                std.debug.print("batch number: {}, time delta: {}ms\n", .{ i, ct - t });
+                std.debug.print("average loss for batch: {any}, avg gradient {any}\n", .{
+                    averageArray(&loss.loss),
+                    averageArray(&loss.input_grads),
+                });
+                std.debug.print("\n l2 out:\n {any},\n", .{
+                    //outputs1.outputs,
+                    //layer1.outputs,
+                    layer2.outputs,
+                    //relu1,
+                });
+                return err;
+            };
+
+            // Update network
+            layer2.backwards(&loss.input_grads);
+            relu1.backwards(&layer2.input_grads);
+            layer1.backwards(&relu1.bkw_out);
+
+            layer1.applyGradients(&layer1.weight_grads);
+            layer2.applyGradients(&layer2.weight_grads);
+
             if (i % (10000 / BATCH_SIZE) == 0) {
                 const ct = std.time.milliTimestamp();
                 std.debug.print("batch number: {}, time delta: {}ms\n", .{ i, ct - t });
-                std.debug.print("average loss for batch: {any}, avg gradient {any}\n", .{ averageArray(&loss.loss), averageArray(&loss.input_grads) });
+                std.debug.print("average loss for batch: {any}, avg gradient {any}\n", .{
+                    averageArray(&loss.loss),
+                    averageArray(&loss.input_grads),
+                });
+                std.debug.print("\nloss:\n {any},\n", .{
+                    //outputs1.outputs,
+                    //layer1.outputs,
+                    layer2.outputs,
+                    //relu1,
+                });
+
                 t = ct;
             }
-            // Update network
-            const grads1 = layer2.backwards(&loss.input_grads);
-            const grads2 = relu1.backwards(&grads1.input_grads);
-            const grads3 = layer1.backwards(&grads2.bkw_out);
-            layer1.applyGradients(&grads3.weight_grads);
-            layer2.applyGradients(&grads1.weight_grads);
         }
 
         // Do validation
@@ -72,14 +104,14 @@ pub fn main() !void {
         while (b < 10000 / BATCH_SIZE) : (b += 1) {
             const inputs = mnist_data.test_images[b * INPUT_SIZE * BATCH_SIZE .. (b + 1) * INPUT_SIZE * BATCH_SIZE];
 
-            const outputs1 = layer1.forward(inputs);
-            const outputs2 = relu1.forward(outputs1.outputs);
-            const outputs3 = layer2.forward(&outputs2.fwd_out);
+            layer1.forward(inputs);
+            relu1.forward(&layer1.outputs);
+            layer2.forward(&relu1.fwd_out);
 
             var max_guess: f64 = std.math.floatMin(f64);
             var guess_index: usize = 0;
             for (0..BATCH_SIZE) |bi| {
-                for (outputs3.outputs[bi * OUTPUT_SIZE .. (bi + 1) * OUTPUT_SIZE], 0..) |o, oi| {
+                for (layer2.outputs[bi * OUTPUT_SIZE .. (bi + 1) * OUTPUT_SIZE], 0..) |o, oi| {
                     if (o > max_guess) {
                         max_guess = o;
                         guess_index = oi;
