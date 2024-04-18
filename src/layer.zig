@@ -44,6 +44,9 @@ pub fn Layer(
         ) void {
             std.debug.assert(self.last_inputs.len == inputSize * batchSize);
 
+            self.input_grads = [1]f64{0} ** (inputSize * batchSize);
+            self.weight_grads = [1]f64{0} ** (inputSize * outputSize);
+
             var b: usize = 0;
             while (b < batchSize) : (b += 1) {
                 var i: usize = 0;

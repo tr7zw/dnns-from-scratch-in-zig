@@ -9,7 +9,7 @@ const INPUT_SIZE: u32 = 784;
 const OUTPUT_SIZE: u32 = 10;
 const LAYER_SIZE: u32 = 100;
 
-const BATCH_SIZE: u32 = 5;
+const BATCH_SIZE: u32 = 250;
 
 const EPOCHS: u32 = 8;
 
@@ -41,7 +41,10 @@ pub fn main() !void {
         // Do training
         var i: usize = 0;
         while (i < 60000 / BATCH_SIZE) : (i += 1) {
-
+            if (i % (10000 / BATCH_SIZE) == 0) {
+                const ct = std.time.milliTimestamp();
+                std.debug.print("batch number: {}, time delta: {}ms\n", .{ i, ct - t });
+            }
             // Prep inputs and targets
             const inputs = mnist_data.train_images[i * INPUT_SIZE * BATCH_SIZE .. (i + 1) * INPUT_SIZE * BATCH_SIZE];
             const targets = mnist_data.train_labels[i * BATCH_SIZE .. (i + 1) * BATCH_SIZE];
@@ -50,11 +53,7 @@ pub fn main() !void {
             layer1.forward(inputs);
             relu1.forward(&layer1.outputs);
             layer2.forward(&relu1.fwd_out);
-            //if (i % (10000 / BATCH_SIZE) == 0) {
-            //    std.debug.print("outputs:\n {any},\n", .{
-            //        layer2.outputs,
-            //    });
-            //}
+
             loss.nll(&layer2.outputs, targets) catch |err| {
                 const ct = std.time.milliTimestamp();
                 std.debug.print("batch number: {}, time delta: {}ms\n", .{ i, ct - t });
@@ -86,12 +85,12 @@ pub fn main() !void {
                     averageArray(&loss.loss),
                     averageArray(&loss.input_grads),
                 });
-                std.debug.print("\nloss:\n {any},\n", .{
-                    //outputs1.outputs,
-                    //layer1.outputs,
-                    layer2.outputs,
-                    //relu1,
-                });
+                //std.debug.print("\nloss:\n {any},\n", .{
+                //    //outputs1.outputs,
+                //    //layer1.outputs,
+                //    layer2.outputs,
+                //    //relu1,
+                //});
 
                 t = ct;
             }
