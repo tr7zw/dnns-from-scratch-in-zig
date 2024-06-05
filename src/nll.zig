@@ -7,12 +7,17 @@ pub fn NLL(
     comptime batchSize: usize,
 ) type {
     return struct {
-        loss: [batchSize]f64, // = [1]f64{0} ** (batchSize);
-        input_grads: [batchSize * inputSize]f64, // = [1]f64{0} ** (batchSize * inputSize);
+        loss: []f64, // = [1]f64{0} ** (batchSize);
+        input_grads: []f64, // = [1]f64{0} ** (batchSize * inputSize);
         const Self = @This();
 
+        pub fn init(alloc: std.mem.Allocator) !Self {
+            return Self{
+                .loss = try alloc.alloc(f64, batchSize),
+                .input_grads = try alloc.alloc(f64, batchSize * inputSize),
+            };
+        }
         pub fn nll(self: *Self, inputs: []f64, targets: []u8) !void {
-            var sum_e: [batchSize]f64 = [1]f64{0} ** (batchSize);
             var b: usize = 0;
             while (b < batchSize) : (b += 1) {
                 var sum: f64 = 0;
@@ -26,19 +31,14 @@ pub fn NLL(
                         return error.divisionbyinf;
                     }
                 }
-                sum_e[b] = sum;
-            }
-
-            b = 0;
-            while (b < batchSize) : (b += 1) {
+                if (sum == 0) return error.divisionbyzero;
+                if (sum == std.math.inf(f64)) return error.divisionbyinf;
                 if (GiveLoss) {
-                    self.loss[b] = -1 * @log(std.math.exp(inputs[b * inputSize + targets[b]]) / sum_e[b]);
+                    self.loss[b] = -1 * @log(std.math.exp(inputs[b * inputSize + targets[b]]) / sum);
                 }
-                var i: usize = 0;
+                i = 0;
                 while (i < inputSize) : (i += 1) {
-                    if (sum_e[b] == 0) return error.divisionbyzero;
-                    if (sum_e[b] == std.math.inf(f64)) return error.divisionbyinf;
-                    self.input_grads[b * inputSize + i] = std.math.exp(inputs[b * inputSize + i]) / sum_e[b];
+                    self.input_grads[b * inputSize + i] = std.math.exp(inputs[b * inputSize + i]) / sum;
                     if (i == targets[b]) {
                         self.input_grads[b * inputSize + i] -= 1;
                     }

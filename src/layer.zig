@@ -9,15 +9,30 @@ pub fn Layer(
         @compileError("0 is an invalid batch size, try 1 or larger");
     }
     return struct {
-        weights: [inputSize * outputSize]f64,
+        weights: []f64,
         last_inputs: []const f64,
-        outputs: [batchSize * outputSize]f64,
-        weight_grads: [inputSize * outputSize]f64, // = [1]f64{0} ** (inputSize * outputSize);
-        input_grads: [batchSize * inputSize]f64, //= [1]f64{0} ** (batchSize * inputSize);
+        outputs: []f64,
+        weight_grads: []f64, // = [1]f64{0} ** (inputSize * outputSize);
+        input_grads: []f64, //= [1]f64{0} ** (batchSize * inputSize);
 
         const Self = @This();
         //var outputs: [batchSize * outputSize]f64 = [1]f64{0} ** (batchSize * outputSize);
 
+        pub fn init(alloc: std.mem.Allocator) !Self {
+            var weights: []f64 = try alloc.alloc(f64, inputSize * outputSize);
+            var prng = std.rand.DefaultPrng.init(123);
+            var w: usize = 0;
+            while (w < inputSize * outputSize) : (w += 1) {
+                weights[w] = prng.random().floatNorm(f64) * 0.2;
+            }
+            return Self{
+                .weights = weights,
+                .last_inputs = undefined,
+                .outputs = try alloc.alloc(f64, outputSize * batchSize),
+                .weight_grads = try alloc.alloc(f64, inputSize * outputSize),
+                .input_grads = try alloc.alloc(f64, inputSize * batchSize),
+            };
+        }
         pub fn forward(
             self: *Self,
             inputs: []const f64,
@@ -44,8 +59,11 @@ pub fn Layer(
         ) void {
             std.debug.assert(self.last_inputs.len == inputSize * batchSize);
 
-            self.input_grads = [1]f64{0} ** (inputSize * batchSize);
-            self.weight_grads = [1]f64{0} ** (inputSize * outputSize);
+            //self.input_grads = [1]f64{0} ** (inputSize * batchSize);
+            //self.weight_grads = [1]f64{0} ** (inputSize * outputSize);
+
+            @memset(self.input_grads, 0);
+            @memset(self.weight_grads, 0);
 
             var b: usize = 0;
             while (b < batchSize) : (b += 1) {
@@ -67,22 +85,6 @@ pub fn Layer(
             while (i < inputSize * outputSize) : (i += 1) {
                 self.weights[i] -= 0.01 * grads[i];
             }
-        }
-
-        pub fn init() Self {
-            var weights: [inputSize * outputSize]f64 = [1]f64{0} ** (inputSize * outputSize);
-            var prng = std.rand.DefaultPrng.init(123);
-            var w: usize = 0;
-            while (w < inputSize * outputSize) : (w += 1) {
-                weights[w] = prng.random().floatNorm(f64) * 0.2;
-            }
-            return Self{
-                .weights = weights,
-                .last_inputs = undefined, //[1]f64{0} ** (batchSize * inputSize),
-                .outputs = [1]f64{0} ** (batchSize * outputSize),
-                .weight_grads = [1]f64{0} ** (inputSize * outputSize),
-                .input_grads = [1]f64{0} ** (batchSize * inputSize),
-            };
         }
     };
 }

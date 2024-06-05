@@ -9,7 +9,7 @@ const INPUT_SIZE: u32 = 784;
 const OUTPUT_SIZE: u32 = 10;
 const LAYER_SIZE: u32 = 100;
 
-const BATCH_SIZE: u32 = 250;
+const BATCH_SIZE: u32 = 32;
 
 const EPOCHS: u32 = 8;
 
@@ -25,13 +25,10 @@ pub fn main() !void {
     const mnist_data = try mnist.readMnist(allocator);
     defer mnist_data.deinit(allocator);
     // Prep NN
-    var layer1: l1 = l1.init();
-    var relu1: Relu1 = Relu1.init();
-    var layer2: l2 = l2.init();
-    var loss: Loss = .{
-        .input_grads = [1]f64{0} ** (BATCH_SIZE * OUTPUT_SIZE),
-        .loss = [1]f64{0} ** (BATCH_SIZE),
-    };
+    var layer1: l1 = try l1.init(allocator);
+    var relu1: Relu1 = try Relu1.init(allocator);
+    var layer2: l2 = try l2.init(allocator);
+    var loss: Loss = try Loss.init(allocator);
 
     var t = std.time.milliTimestamp();
     std.debug.print("Training... \n", .{});
@@ -51,15 +48,15 @@ pub fn main() !void {
 
             // Go forward and get loss
             layer1.forward(inputs);
-            relu1.forward(&layer1.outputs);
-            layer2.forward(&relu1.fwd_out);
+            relu1.forward(layer1.outputs);
+            layer2.forward(relu1.fwd_out);
 
-            loss.nll(&layer2.outputs, targets) catch |err| {
+            loss.nll(layer2.outputs, targets) catch |err| {
                 const ct = std.time.milliTimestamp();
                 std.debug.print("batch number: {}, time delta: {}ms\n", .{ i, ct - t });
                 std.debug.print("average loss for batch: {any}, avg gradient {any}\n", .{
-                    averageArray(&loss.loss),
-                    averageArray(&loss.input_grads),
+                    averageArray(loss.loss),
+                    averageArray(loss.input_grads),
                 });
                 std.debug.print("\n l2 out:\n {any},\n", .{
                     //outputs1.outputs,
@@ -71,19 +68,19 @@ pub fn main() !void {
             };
 
             // Update network
-            layer2.backwards(&loss.input_grads);
-            relu1.backwards(&layer2.input_grads);
-            layer1.backwards(&relu1.bkw_out);
+            layer2.backwards(loss.input_grads);
+            relu1.backwards(layer2.input_grads);
+            layer1.backwards(relu1.bkw_out);
 
-            layer1.applyGradients(&layer1.weight_grads);
-            layer2.applyGradients(&layer2.weight_grads);
+            layer1.applyGradients(layer1.weight_grads);
+            layer2.applyGradients(layer2.weight_grads);
 
             if (i % (10000 / BATCH_SIZE) == 0) {
                 const ct = std.time.milliTimestamp();
                 std.debug.print("batch number: {}, time delta: {}ms\n", .{ i, ct - t });
                 std.debug.print("average loss for batch: {any}, avg gradient {any}\n", .{
-                    averageArray(&loss.loss),
-                    averageArray(&loss.input_grads),
+                    averageArray(loss.loss),
+                    averageArray(loss.input_grads),
                 });
                 //std.debug.print("\nloss:\n {any},\n", .{
                 //    //outputs1.outputs,
@@ -104,8 +101,8 @@ pub fn main() !void {
             const inputs = mnist_data.test_images[b * INPUT_SIZE * BATCH_SIZE .. (b + 1) * INPUT_SIZE * BATCH_SIZE];
 
             layer1.forward(inputs);
-            relu1.forward(&layer1.outputs);
-            layer2.forward(&relu1.fwd_out);
+            relu1.forward(layer1.outputs);
+            layer2.forward(relu1.fwd_out);
 
             var max_guess: f64 = std.math.floatMin(f64);
             var guess_index: usize = 0;
@@ -125,7 +122,7 @@ pub fn main() !void {
         std.debug.print("Average Validation Accuracy: {}\n", .{correct});
     }
 }
-fn averageArray(arr: []const f64) f64 {
+fn averageArray(arr: []f64) f64 {
     var sum: f64 = 0;
     for (arr) |elem| {
         sum += elem;
