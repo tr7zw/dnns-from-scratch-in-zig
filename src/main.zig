@@ -2,6 +2,7 @@ const layer = @import("layer.zig");
 const nll = @import("nll.zig");
 const mnist = @import("mnist.zig");
 const relu = @import("relu.zig");
+//const pyramid = @import("pyramid.zig");
 
 const std = @import("std");
 
@@ -9,7 +10,7 @@ const INPUT_SIZE: u32 = 784;
 const OUTPUT_SIZE: u32 = 10;
 const LAYER_SIZE: u32 = 100;
 
-const BATCH_SIZE: u32 = 8;
+const BATCH_SIZE: u32 = 25;
 
 const EPOCHS: u32 = 8;
 
@@ -17,6 +18,13 @@ const l1 = layer.Layer(INPUT_SIZE, LAYER_SIZE, BATCH_SIZE);
 const Relu1 = relu.Relu(LAYER_SIZE * BATCH_SIZE);
 const l2 = layer.Layer(LAYER_SIZE, OUTPUT_SIZE, BATCH_SIZE);
 const Loss = nll.NLL(OUTPUT_SIZE, BATCH_SIZE);
+
+const testImageCount = 10000;
+//testImageCount / INPUT_SIZE
+//relu1.fwd_out / LAYER_SIZE
+const Validationl1 = layer.Layer(INPUT_SIZE, LAYER_SIZE, testImageCount);
+const ValidationRelu = relu.Relu(LAYER_SIZE * testImageCount);
+const Validationl2 = layer.Layer(LAYER_SIZE, OUTPUT_SIZE, testImageCount);
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -30,6 +38,10 @@ pub fn main() !void {
     var layer2: l2 = try l2.init(allocator);
     var loss: Loss = try Loss.init(allocator);
 
+    var validationLayer1 = try Validationl1.init(allocator);
+    var validationRelu = try ValidationRelu.init(allocator);
+    var validationLayer2 = try Validationl2.init(allocator);
+
     var t = std.time.milliTimestamp();
     std.debug.print("Training... \n", .{});
     // Do training
@@ -40,7 +52,7 @@ pub fn main() !void {
         while (i < 60000 / BATCH_SIZE) : (i += 1) {
             if (i % (10000 / BATCH_SIZE) == 0) {
                 const ct = std.time.milliTimestamp();
-                std.debug.print("batch number: {}, time delta: {}ms\n", .{ i, ct - t });
+                std.debug.print("batch number: {}, time delta: {}ms\n", .{ i * BATCH_SIZE, ct - t });
             }
             // Prep inputs and targets
             const inputs = mnist_data.train_images[i * INPUT_SIZE * BATCH_SIZE .. (i + 1) * INPUT_SIZE * BATCH_SIZE];
@@ -53,10 +65,9 @@ pub fn main() !void {
 
             loss.nll(layer2.outputs, targets) catch |err| {
                 const ct = std.time.milliTimestamp();
-                std.debug.print("batch number: {}, time delta: {}ms\n", .{ i, ct - t });
-                std.debug.print("average loss for batch: {any}, avg gradient {any}\n", .{
+                std.debug.print("batch number: {}, time delta: {}ms\n", .{ i * BATCH_SIZE, ct - t });
+                std.debug.print("average loss for batch: {any}\n", .{
                     averageArray(loss.loss),
-                    averageArray(loss.input_grads),
                 });
                 std.debug.print("\n l2 out:\n {any},\n", .{
                     //outputs1.outputs,
@@ -77,7 +88,7 @@ pub fn main() !void {
 
             if (i % (10000 / BATCH_SIZE) == 0) {
                 const ct = std.time.milliTimestamp();
-                std.debug.print("batch number: {}, time delta: {}ms\n", .{ i, ct - t });
+                std.debug.print("batch number: {}, time delta: {}ms\n", .{ i * BATCH_SIZE, ct - t });
                 std.debug.print("average loss for batch: {any}, avg gradient {any}\n", .{
                     averageArray(loss.loss),
                     averageArray(loss.input_grads),
@@ -97,27 +108,28 @@ pub fn main() !void {
         i = 0;
         var correct: f64 = 0;
         var b: usize = 0;
-        while (b < 10000 / BATCH_SIZE) : (b += 1) {
-            const inputs = mnist_data.test_images[b * INPUT_SIZE * BATCH_SIZE .. (b + 1) * INPUT_SIZE * BATCH_SIZE];
+        const inputs = mnist_data.test_images;
+        validationLayer1.setWeights(layer1.weights);
+        validationLayer2.setWeights(layer2.weights);
+        //todo: make this work by feeding the structs into eachother for layer size check sanity
+        validationLayer1.forward(inputs);
+        validationRelu.forward(validationLayer1.outputs);
+        validationLayer2.forward(validationRelu.fwd_out);
 
-            layer1.forward(inputs);
-            relu1.forward(layer1.outputs);
-            layer2.forward(relu1.fwd_out);
-
+        while (b < 10000) : (b += 1) {
             var max_guess: f64 = std.math.floatMin(f64);
             var guess_index: usize = 0;
-            for (0..BATCH_SIZE) |bi| {
-                for (layer2.outputs[bi * OUTPUT_SIZE .. (bi + 1) * OUTPUT_SIZE], 0..) |o, oi| {
-                    if (o > max_guess) {
-                        max_guess = o;
-                        guess_index = oi;
-                    }
-                }
-                if (guess_index == mnist_data.test_labels[b + bi]) {
-                    correct += 1;
+            for (validationLayer2.outputs[b * OUTPUT_SIZE .. (b + 1) * OUTPUT_SIZE], 0..) |o, oi| {
+                if (o > max_guess) {
+                    max_guess = o;
+                    guess_index = oi;
                 }
             }
+            if (guess_index == mnist_data.test_labels[b]) {
+                correct += 1;
+            }
         }
+
         correct = correct / 10000;
         std.debug.print("Average Validation Accuracy: {}\n", .{correct});
     }

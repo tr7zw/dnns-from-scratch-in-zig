@@ -5,9 +5,10 @@ pub fn Layer(
     comptime outputSize: usize,
     comptime batchSize: usize,
 ) type {
-    if (batchSize == 0) {
-        @compileError("0 is an invalid batch size, try 1 or larger");
-    }
+    std.debug.assert(inputSize != 0);
+    std.debug.assert(outputSize != 0);
+    std.debug.assert(batchSize != 0);
+
     return struct {
         weights: []f64,
         last_inputs: []const f64,

@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub fn Relu(size: usize) type {
+pub fn Relu(comptime size: usize) type {
     return struct {
         last_inputs: []const f64 = undefined,
         fwd_out: []f64,
