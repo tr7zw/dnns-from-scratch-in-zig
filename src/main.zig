@@ -9,7 +9,7 @@ const INPUT_SIZE: u32 = 784;
 const OUTPUT_SIZE: u32 = 10;
 const LAYER_SIZE: u32 = 100;
 
-const BATCH_SIZE: u32 = 32;
+const BATCH_SIZE: u32 = 8;
 
 const EPOCHS: u32 = 8;
 
@@ -131,19 +131,25 @@ fn averageArray(arr: []f64) f64 {
 }
 
 test "Forward once" {
-    //var allocator = std.testing.allocator;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var AA = std.heap.ArenaAllocator.init(gpa.allocator());
+    const allocator = AA.allocator();
+    defer _ = AA.deinit();
+
     const b = 2;
-    const loss_function = nll.NLL(2, b);
+    var loss = try nll.NLL(2, b).init(allocator);
 
     // Create layer with custom weights
-    var layer1 = layer.Layer(2, 2, b).init();
+    var layer1 = try layer.Layer(2, 2, b).init(allocator);
     //allocator.free(layer1.weights);
-    const custom_weights = [4]f64{ 0.1, 0.2, 0.3, 0.4 };
-    layer1.weights = custom_weights;
+    var custom_weights = [4]f64{ 0.1, 0.2, 0.3, 0.4 };
+    //layer1.weights = custom_weights;
+    layer1.setWeights(&custom_weights);
 
     // Test forward pass outputs
     const inputs = [_]f64{ 0.1, 0.2, 0.3, 0.4 };
-    const outputs = layer1.forward(&inputs);
+    layer1.forward(&inputs);
+    const outputs = layer1.outputs;
     const expected_outputs = [4]f64{
         0.07,
         0.1,
@@ -161,7 +167,7 @@ test "Forward once" {
     // Test loss outputs
     var targets_array = [_]u8{ 0, 1 };
     const targets: []u8 = &targets_array;
-    const loss = loss_function.nll(outputs, targets);
+    try loss.nll(outputs, targets);
     //allocator.free(outputs);
     const expected_loss = [2]f64{ 0.7082596763414484, 0.658759555548697 };
     i = 0;
@@ -182,7 +188,7 @@ test "Forward once" {
     }
 
     // Do layer backwards
-    const grads = layer1.backwards(loss.input_grads);
+    layer1.backwards(loss.input_grads);
 
     // Test layer weight grads
     const expected_layer_weight_grads = [4]f64{
@@ -199,7 +205,7 @@ test "Forward once" {
     while (i < 4) : (i += 1) {
         try std.testing.expectApproxEqRel(
             expected_layer_weight_grads[i],
-            grads.weight_grads[i],
+            layer1.weight_grads[i],
             0.000_000_001,
         );
     }
@@ -223,7 +229,7 @@ test "Forward once" {
         //    grads.input_grads[i],
         //    expected_layer_input_grads[i],
         //});
-        try std.testing.expectApproxEqRel(grads.input_grads[i], expected_layer_input_grads[i], 0.000000001);
+        try std.testing.expectApproxEqRel(layer1.input_grads[i], expected_layer_input_grads[i], 0.000000001);
     }
 }
 

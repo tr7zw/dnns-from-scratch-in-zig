@@ -17,6 +17,9 @@ pub fn Layer(
 
         const Self = @This();
         //var outputs: [batchSize * outputSize]f64 = [1]f64{0} ** (batchSize * outputSize);
+        pub fn setWeights(self: *Self, weights: []f64) void {
+            self.weights = weights;
+        }
 
         pub fn init(alloc: std.mem.Allocator) !Self {
             var weights: []f64 = try alloc.alloc(f64, inputSize * outputSize);
