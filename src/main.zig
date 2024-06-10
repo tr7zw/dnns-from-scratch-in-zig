@@ -3,6 +3,7 @@ const nll = @import("nll.zig");
 const mnist = @import("mnist.zig");
 const relu = @import("relu.zig");
 const pyramid = @import("pyramid.zig");
+const gaussian = @import("gaussian.zig");
 
 const std = @import("std");
 
@@ -15,7 +16,7 @@ const BATCH_SIZE: u32 = 25;
 const EPOCHS: u32 = 8;
 
 const l1 = layer.Layer(INPUT_SIZE, LAYER_SIZE, BATCH_SIZE);
-const Relu1 = pyramid.Pyramid(LAYER_SIZE * BATCH_SIZE);
+const Relu1 = gaussian.Gaussian(LAYER_SIZE * BATCH_SIZE);
 const l2 = layer.Layer(LAYER_SIZE, OUTPUT_SIZE, BATCH_SIZE);
 const Loss = nll.NLL(OUTPUT_SIZE, BATCH_SIZE);
 
@@ -23,7 +24,7 @@ const testImageCount = 10000;
 //testImageCount / INPUT_SIZE
 //relu1.fwd_out / LAYER_SIZE
 const Validationl1 = layer.Layer(INPUT_SIZE, LAYER_SIZE, testImageCount);
-const ValidationRelu = pyramid.Pyramid(LAYER_SIZE * testImageCount);
+const ValidationRelu = gaussian.Gaussian(LAYER_SIZE * testImageCount);
 const Validationl2 = layer.Layer(LAYER_SIZE, OUTPUT_SIZE, testImageCount);
 
 pub fn main() !void {
