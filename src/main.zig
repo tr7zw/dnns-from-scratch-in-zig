@@ -1,4 +1,5 @@
 const layer = @import("layer.zig");
+const layerB = @import("layerBias.zig");
 const nll = @import("nll.zig");
 const mnist = @import("mnist.zig");
 const relu = @import("relu.zig");
@@ -15,17 +16,17 @@ const BATCH_SIZE: u32 = 25;
 
 const EPOCHS: u32 = 8;
 
-const l1 = layer.Layer(INPUT_SIZE, LAYER_SIZE, BATCH_SIZE);
-const Relu1 = gaussian.Gaussian(LAYER_SIZE * BATCH_SIZE);
-const l2 = layer.Layer(LAYER_SIZE, OUTPUT_SIZE, BATCH_SIZE);
+const l1 = layerB.Layer(INPUT_SIZE, LAYER_SIZE, BATCH_SIZE);
+const Relu1 = relu.Relu(LAYER_SIZE * BATCH_SIZE);
+const l2 = layerB.Layer(LAYER_SIZE, OUTPUT_SIZE, BATCH_SIZE);
 const Loss = nll.NLL(OUTPUT_SIZE, BATCH_SIZE);
 
 const testImageCount = 10000;
 //testImageCount / INPUT_SIZE
 //relu1.fwd_out / LAYER_SIZE
-const Validationl1 = layer.Layer(INPUT_SIZE, LAYER_SIZE, testImageCount);
-const ValidationRelu = gaussian.Gaussian(LAYER_SIZE * testImageCount);
-const Validationl2 = layer.Layer(LAYER_SIZE, OUTPUT_SIZE, testImageCount);
+const Validationl1 = layerB.Layer(INPUT_SIZE, LAYER_SIZE, testImageCount);
+const ValidationRelu = relu.Relu(LAYER_SIZE * testImageCount);
+const Validationl2 = layerB.Layer(LAYER_SIZE, OUTPUT_SIZE, testImageCount);
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -43,7 +44,7 @@ pub fn main() !void {
     var validationRelu = try ValidationRelu.init(allocator);
     var validationLayer2 = try Validationl2.init(allocator);
 
-    var t = std.time.milliTimestamp();
+    const t = std.time.milliTimestamp();
     std.debug.print("Training... \n", .{});
     // Do training
     var e: usize = 0;
@@ -51,10 +52,14 @@ pub fn main() !void {
         // Do training
         var i: usize = 0;
         while (i < 60000 / BATCH_SIZE) : (i += 1) {
-            if (i % (10000 / BATCH_SIZE) == 0) {
-                const ct = std.time.milliTimestamp();
-                std.debug.print("batch number: {}, time delta: {}ms\n", .{ i * BATCH_SIZE, ct - t });
-            }
+            //if (i % (10000 / BATCH_SIZE) == 0) {
+            //    const ct = std.time.milliTimestamp();
+            //    std.debug.print("batch number: {}, time total: {}ms\n", .{ i * BATCH_SIZE, ct - t });
+            //    //t = ct;
+            //    std.debug.print("\n l2 bias:\n {any},\n", .{
+            //        layer2.biases,
+            //    });
+            //}
             // Prep inputs and targets
             const inputs = mnist_data.train_images[i * INPUT_SIZE * BATCH_SIZE .. (i + 1) * INPUT_SIZE * BATCH_SIZE];
             const targets = mnist_data.train_labels[i * BATCH_SIZE .. (i + 1) * BATCH_SIZE];
@@ -73,7 +78,8 @@ pub fn main() !void {
                 std.debug.print("\n l2 out:\n {any},\n", .{
                     //outputs1.outputs,
                     //layer1.outputs,
-                    layer2.outputs,
+                    //layer2.outputs,
+                    layer2.biases,
                     //relu1,
                 });
                 return err;
@@ -84,25 +90,8 @@ pub fn main() !void {
             relu1.backwards(layer2.input_grads);
             layer1.backwards(relu1.bkw_out);
 
-            layer1.applyGradients(layer1.weight_grads);
-            layer2.applyGradients(layer2.weight_grads);
-
-            if (i % (10000 / BATCH_SIZE) == 0) {
-                const ct = std.time.milliTimestamp();
-                std.debug.print("batch number: {}, time delta: {}ms\n", .{ i * BATCH_SIZE, ct - t });
-                std.debug.print("average loss for batch: {any}, avg gradient {any}\n", .{
-                    averageArray(loss.loss),
-                    averageArray(loss.input_grads),
-                });
-                //std.debug.print("\nloss:\n {any},\n", .{
-                //    //outputs1.outputs,
-                //    //layer1.outputs,
-                //    layer2.outputs,
-                //    //relu1,
-                //});
-
-                t = ct;
-            }
+            layer1.applyGradients(layer1.weight_grads, layer1.bias_grads);
+            layer2.applyGradients(layer2.weight_grads, layer2.bias_grads);
         }
 
         // Do validation
@@ -112,6 +101,8 @@ pub fn main() !void {
         const inputs = mnist_data.test_images;
         validationLayer1.setWeights(layer1.weights);
         validationLayer2.setWeights(layer2.weights);
+        validationLayer1.setBiases(layer1.biases);
+        validationLayer2.setBiases(layer2.biases);
         //todo: make this work by feeding the structs into eachother for layer size check sanity
         validationLayer1.forward(inputs);
         validationRelu.forward(validationLayer1.outputs);
@@ -130,10 +121,11 @@ pub fn main() !void {
                 correct += 1;
             }
         }
-
         correct = correct / 10000;
         std.debug.print("Average Validation Accuracy: {}\n", .{correct});
     }
+    const ct = std.time.milliTimestamp();
+    std.debug.print(" time total: {}ms\n", .{ct - t});
 }
 fn averageArray(arr: []f64) f64 {
     var sum: f64 = 0;

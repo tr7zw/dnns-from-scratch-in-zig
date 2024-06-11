@@ -7,7 +7,7 @@ pub fn Gaussian(comptime size: usize) type {
         bkw_out: []f64,
 
         const Self = @This();
-        pub const mu: f64 = 0.0; // center of the bump
+        pub const mu: f64 = 0.5; // center of the bump
         pub const sigma: f64 = 1.0; // width of the bump
 
         pub fn init(alloc: std.mem.Allocator) !Self {
