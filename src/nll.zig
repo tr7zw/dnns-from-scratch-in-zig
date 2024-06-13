@@ -4,22 +4,28 @@ const GiveLoss = true;
 
 pub fn NLL(
     comptime inputSize: usize,
-    comptime batchSize: usize,
+    //comptime batchSize: usize,
 ) type {
     return struct {
         loss: []f64, // = [1]f64{0} ** (batchSize);
         input_grads: []f64, // = [1]f64{0} ** (batchSize * inputSize);
+        batchSize: usize,
+
         const Self = @This();
 
-        pub fn init(alloc: std.mem.Allocator) !Self {
+        pub fn init(
+            alloc: std.mem.Allocator,
+            batchSize: usize,
+        ) !Self {
             return Self{
                 .loss = try alloc.alloc(f64, batchSize),
                 .input_grads = try alloc.alloc(f64, batchSize * inputSize),
+                .batchSize = batchSize,
             };
         }
         pub fn nll(self: *Self, inputs: []f64, targets: []u8) !void {
             var b: usize = 0;
-            while (b < batchSize) : (b += 1) {
+            while (b < self.batchSize) : (b += 1) {
                 var sum: f64 = 0;
                 var i: usize = 0;
                 while (i < inputSize) : (i += 1) {

@@ -8,50 +8,102 @@ const gaussian = @import("gaussian.zig");
 
 const std = @import("std");
 
-const INPUT_SIZE: u32 = 784;
-const OUTPUT_SIZE: u32 = 10;
-const LAYER_SIZE: u32 = 100;
-
-const BATCH_SIZE: u32 = 25;
-
-const EPOCHS: u32 = 8;
-
-const l1 = layerB.Layer(INPUT_SIZE, LAYER_SIZE, BATCH_SIZE);
-const Relu1 = relu.Relu(LAYER_SIZE * BATCH_SIZE);
-const l2 = layerB.Layer(LAYER_SIZE, OUTPUT_SIZE, BATCH_SIZE);
-const Loss = nll.NLL(OUTPUT_SIZE, BATCH_SIZE);
-
-const testImageCount = 10000;
-//testImageCount / INPUT_SIZE
-//relu1.fwd_out / LAYER_SIZE
-const Validationl1 = layerB.Layer(INPUT_SIZE, LAYER_SIZE, testImageCount);
-const ValidationRelu = relu.Relu(LAYER_SIZE * testImageCount);
-const Validationl2 = layerB.Layer(LAYER_SIZE, OUTPUT_SIZE, testImageCount);
-
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
+    _ = try Neuralnet(
+        784,
+        10,
+        100,
+        100,
+        32,
+        layerB,
+        gaussian,
+        allocator,
+    );
+}
+const Activation = union(enum) {
+    gauss: gaussian,
+    pyramid: pyramid,
+    relu: relu,
+    none,
+};
+const Layer = union(enum) {
+    LayerB: layerB,
+    Layer: layer,
+};
+
+const layerDescriptor = struct {
+    layer: Layer,
+    activation: Activation,
+};
+
+//pub fn NeurNetDescriptor(
+//    comptime inputSize: usize,
+//    comptime outputSize: usize,
+//    comptime layers: []usize,
+//    comptime layertype: type,
+//    comptime activations: []type,
+//) type {
+//
+//    return struct {
+//
+//        layers: []layerDescriptor,
+//
+//        const layer1 = layertype.Layer(inputSize, layers[0]);
+//        const Relu1 = activations[0].Activation(layers[0]);
+//        for(layers)|layer|{
+//
+//        };
+//
+//        const layerLast = layertype.Layer(layers[layers.len-1], outputSize);
+//        const Loss = nll.NLL(outputSize);
+//
+//    };
+//}
+
+pub fn Neuralnet(
+    comptime inputSize: u32,
+    comptime outputSize: u32,
+    comptime layerSize: u32,
+    comptime batchSize: u32,
+    comptime epochs: u32,
+    comptime layertype: type,
+    comptime activation: type,
+    allocator: std.mem.Allocator,
+) ![4][]f64 {
+    const l1 = layertype.Layer(inputSize, layerSize);
+    const Relu1 = activation.Activation(layerSize);
+    const l2 = layertype.Layer(layerSize, outputSize);
+    const Loss = nll.NLL(outputSize);
+
+    const testImageCount = 10000;
+    //testImageCount / INPUT_SIZE
+    //relu1.fwd_out / LAYER_SIZE
+
+    //var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    //const allocator = gpa.allocator();
     // Get MNIST data
     const mnist_data = try mnist.readMnist(allocator);
     defer mnist_data.deinit(allocator);
     // Prep NN
-    var layer1: l1 = try l1.init(allocator);
-    var relu1: Relu1 = try Relu1.init(allocator);
-    var layer2: l2 = try l2.init(allocator);
-    var loss: Loss = try Loss.init(allocator);
+    var layer1: l1 = try l1.init(allocator, batchSize);
+    var relu1: Relu1 = try Relu1.init(allocator, batchSize);
+    var layer2: l2 = try l2.init(allocator, batchSize);
+    var loss: Loss = try Loss.init(allocator, batchSize);
 
-    var validationLayer1 = try Validationl1.init(allocator);
-    var validationRelu = try ValidationRelu.init(allocator);
-    var validationLayer2 = try Validationl2.init(allocator);
+    var validationLayer1 = try l1.init(allocator, testImageCount);
+    var validationRelu = try Relu1.init(allocator, testImageCount);
+    var validationLayer2 = try l2.init(allocator, testImageCount);
 
     const t = std.time.milliTimestamp();
     std.debug.print("Training... \n", .{});
     // Do training
     var e: usize = 0;
-    while (e < EPOCHS) : (e += 1) {
+    while (e < epochs) : (e += 1) {
         // Do training
         var i: usize = 0;
-        while (i < 60000 / BATCH_SIZE) : (i += 1) {
+        while (i < 60000 / batchSize) : (i += 1) {
             //if (i % (10000 / BATCH_SIZE) == 0) {
             //    const ct = std.time.milliTimestamp();
             //    std.debug.print("batch number: {}, time total: {}ms\n", .{ i * BATCH_SIZE, ct - t });
@@ -61,8 +113,8 @@ pub fn main() !void {
             //    });
             //}
             // Prep inputs and targets
-            const inputs = mnist_data.train_images[i * INPUT_SIZE * BATCH_SIZE .. (i + 1) * INPUT_SIZE * BATCH_SIZE];
-            const targets = mnist_data.train_labels[i * BATCH_SIZE .. (i + 1) * BATCH_SIZE];
+            const inputs = mnist_data.train_images[i * inputSize * batchSize .. (i + 1) * inputSize * batchSize];
+            const targets = mnist_data.train_labels[i * batchSize .. (i + 1) * batchSize];
 
             // Go forward and get loss
             layer1.forward(inputs);
@@ -71,7 +123,7 @@ pub fn main() !void {
 
             loss.nll(layer2.outputs, targets) catch |err| {
                 const ct = std.time.milliTimestamp();
-                std.debug.print("batch number: {}, time delta: {}ms\n", .{ i * BATCH_SIZE, ct - t });
+                std.debug.print("batch number: {}, time delta: {}ms\n", .{ i * batchSize, ct - t });
                 std.debug.print("average loss for batch: {any}\n", .{
                     averageArray(loss.loss),
                 });
@@ -111,7 +163,7 @@ pub fn main() !void {
         while (b < 10000) : (b += 1) {
             var max_guess: f64 = std.math.floatMin(f64);
             var guess_index: usize = 0;
-            for (validationLayer2.outputs[b * OUTPUT_SIZE .. (b + 1) * OUTPUT_SIZE], 0..) |o, oi| {
+            for (validationLayer2.outputs[b * outputSize .. (b + 1) * outputSize], 0..) |o, oi| {
                 if (o > max_guess) {
                     max_guess = o;
                     guess_index = oi;
@@ -126,6 +178,7 @@ pub fn main() !void {
     }
     const ct = std.time.milliTimestamp();
     std.debug.print(" time total: {}ms\n", .{ct - t});
+    return [_][]f64{ layer1.weights, layer1.biases, layer2.weights, layer2.biases };
 }
 fn averageArray(arr: []f64) f64 {
     var sum: f64 = 0;

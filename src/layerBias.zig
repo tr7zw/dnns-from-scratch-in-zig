@@ -3,11 +3,10 @@ const std = @import("std");
 pub fn Layer(
     comptime inputSize: usize,
     comptime outputSize: usize,
-    comptime batchSize: usize,
 ) type {
     std.debug.assert(inputSize != 0);
     std.debug.assert(outputSize != 0);
-    std.debug.assert(batchSize != 0);
+    //std.debug.assert(batchSize != 0);
 
     return struct {
         weights: []f64,
@@ -17,6 +16,7 @@ pub fn Layer(
         weight_grads: []f64,
         bias_grads: []f64,
         input_grads: []f64,
+        batchSize: usize,
 
         const Self = @This();
 
@@ -28,7 +28,10 @@ pub fn Layer(
             self.biases = biases;
         }
 
-        pub fn init(alloc: std.mem.Allocator) !Self {
+        pub fn init(
+            alloc: std.mem.Allocator,
+            batchSize: usize,
+        ) !Self {
             var weights: []f64 = try alloc.alloc(f64, inputSize * outputSize);
             var biases: []f64 = try alloc.alloc(f64, outputSize);
             var prng = std.rand.DefaultPrng.init(123);
@@ -51,6 +54,7 @@ pub fn Layer(
                 .weight_grads = try alloc.alloc(f64, inputSize * outputSize),
                 .bias_grads = try alloc.alloc(f64, outputSize),
                 .input_grads = try alloc.alloc(f64, inputSize * batchSize),
+                .batchSize = batchSize,
             };
         }
 
@@ -58,10 +62,10 @@ pub fn Layer(
             self: *Self,
             inputs: []const f64,
         ) void {
-            std.debug.assert(inputs.len == inputSize * batchSize);
+            std.debug.assert(inputs.len == inputSize * self.batchSize);
 
             var b: usize = 0;
-            while (b < batchSize) : (b += 1) {
+            while (b < self.batchSize) : (b += 1) {
                 var o: usize = 0;
                 while (o < outputSize) : (o += 1) {
                     var sum: f64 = 0;
@@ -79,21 +83,21 @@ pub fn Layer(
             self: *Self,
             grads: []f64,
         ) void {
-            std.debug.assert(self.last_inputs.len == inputSize * batchSize);
+            std.debug.assert(self.last_inputs.len == inputSize * self.batchSize);
 
             @memset(self.input_grads, 0);
             @memset(self.weight_grads, 0);
             @memset(self.bias_grads, 0);
 
             var b: usize = 0;
-            while (b < batchSize) : (b += 1) {
+            while (b < self.batchSize) : (b += 1) {
                 var o: usize = 0;
                 while (o < outputSize) : (o += 1) {
-                    self.bias_grads[o] += grads[b * outputSize + o] / @as(f64, @floatFromInt(batchSize));
+                    self.bias_grads[o] += grads[b * outputSize + o] / @as(f64, @floatFromInt(self.batchSize));
                     var i: usize = 0;
                     while (i < inputSize) : (i += 1) {
                         self.weight_grads[i * outputSize + o] +=
-                            (grads[b * outputSize + o] * self.last_inputs[b * inputSize + i]) / @as(f64, @floatFromInt(batchSize));
+                            (grads[b * outputSize + o] * self.last_inputs[b * inputSize + i]) / @as(f64, @floatFromInt(self.batchSize));
                         self.input_grads[b * inputSize + i] +=
                             grads[b * outputSize + o] * self.weights[i * outputSize + o];
                     }

@@ -1,26 +1,31 @@
 const std = @import("std");
 
-pub fn Pyramid(comptime size: usize) type {
+pub fn Activation(comptime size: usize) type {
     return struct {
         last_inputs: []const f64 = undefined,
         fwd_out: []f64,
         bkw_out: []f64,
+        batchSize: usize,
 
         const Self = @This();
 
         pub const threshold: f64 = 1.0;
         pub const leak_slope: f64 = 0.01;
 
-        pub fn init(alloc: std.mem.Allocator) !Self {
+        pub fn init(
+            alloc: std.mem.Allocator,
+            batchSize: usize,
+        ) !Self {
             return Self{
-                .last_inputs = try alloc.alloc(f64, size),
-                .fwd_out = try alloc.alloc(f64, size),
-                .bkw_out = try alloc.alloc(f64, size),
+                .last_inputs = try alloc.alloc(f64, size * batchSize),
+                .fwd_out = try alloc.alloc(f64, size * batchSize),
+                .bkw_out = try alloc.alloc(f64, size * batchSize),
+                .batchSize = batchSize,
             };
         }
 
         pub fn forward(self: *Self, inputs: []f64) void {
-            std.debug.assert(inputs.len == size);
+            std.debug.assert(inputs.len == size * self.batchSize);
 
             var i: usize = 0;
             while (i < inputs.len) : (i += 1) {
@@ -39,7 +44,7 @@ pub fn Pyramid(comptime size: usize) type {
         }
 
         pub fn backwards(self: *Self, grads: []f64) void {
-            std.debug.assert(grads.len == size);
+            std.debug.assert(grads.len == size * self.batchSize);
             var i: usize = 0;
             while (i < self.last_inputs.len) : (i += 1) {
                 const x = self.last_inputs[i];
