@@ -156,20 +156,19 @@ pub fn Neuralnet(
         const size = switch (layerD.layer) {
             .Layer, .LayerB => |size| size,
         };
-        defer previousLayerSize = size;
         storage[i] = try layerFromDescriptor(
             allocator,
             layerD,
             batchSize,
             previousLayerSize,
         );
-        //const b = if (layerD.activation) |b| try b.init(allocator, batchSize) else null;
         validationStorage[i] = try layerFromDescriptor(
             allocator,
             layerD,
             testImageCount,
             previousLayerSize,
         );
+        previousLayerSize = size;
     }
 
     var loss: Loss = try Loss.init(allocator, batchSize);

@@ -61,6 +61,9 @@ pub fn forward(
     self: *Self,
     inputs: []const f64,
 ) void {
+    if (inputs.len != self.inputSize * self.batchSize) {
+        std.debug.print("size mismatch {any}, vs expected {any} * {any} = {any}", .{ inputs.len, self.inputSize, self.batchSize, self.inputSize * self.batchSize });
+    }
     std.debug.assert(inputs.len == self.inputSize * self.batchSize);
 
     var b: usize = 0;
