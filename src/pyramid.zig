@@ -1,11 +1,12 @@
 const std = @import("std");
 
-pub fn Activation(comptime size: usize) type {
+pub fn Activation() type {
     return struct {
         last_inputs: []const f64 = undefined,
         fwd_out: []f64,
         bkw_out: []f64,
         batchSize: usize,
+        size: usize,
 
         const Self = @This();
 
@@ -15,17 +16,19 @@ pub fn Activation(comptime size: usize) type {
         pub fn init(
             alloc: std.mem.Allocator,
             batchSize: usize,
+            size: usize,
         ) !Self {
             return Self{
                 .last_inputs = try alloc.alloc(f64, size * batchSize),
                 .fwd_out = try alloc.alloc(f64, size * batchSize),
                 .bkw_out = try alloc.alloc(f64, size * batchSize),
                 .batchSize = batchSize,
+                .size = size,
             };
         }
 
         pub fn forward(self: *Self, inputs: []f64) void {
-            std.debug.assert(inputs.len == size * self.batchSize);
+            std.debug.assert(inputs.len == self.size * self.batchSize);
 
             var i: usize = 0;
             while (i < inputs.len) : (i += 1) {
@@ -44,7 +47,7 @@ pub fn Activation(comptime size: usize) type {
         }
 
         pub fn backwards(self: *Self, grads: []f64) void {
-            std.debug.assert(grads.len == size * self.batchSize);
+            std.debug.assert(grads.len == self.size * self.batchSize);
             var i: usize = 0;
             while (i < self.last_inputs.len) : (i += 1) {
                 const x = self.last_inputs[i];

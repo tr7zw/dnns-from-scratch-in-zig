@@ -11,22 +11,34 @@ const std = @import("std");
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
+    //const l = [_]usize{100};
+    const NND = [_]layerDescriptor{ .{
+        .layer = .{ .LayerB = 100 },
+        .activation = Activation{ .gaussian = gaussian{} },
+    }, .{
+        .layer = .{ .LayerB = 10 },
+        .activation = Activation{ .none = {} },
+    } };
     _ = try Neuralnet(
+        &NND,
         784,
         10,
         100,
-        100,
         32,
-        layerB,
-        gaussian,
         allocator,
     );
 }
-const Activation = union(enum) {
-    gauss: gaussian,
-    pyramid: pyramid,
+
+const Activation = union {
     relu: relu,
-    none,
+    pyramid: pyramid,
+    gaussian: gaussian,
+    none: void,
+};
+
+const uLayer = union(enum) {
+    LayerB: usize,
+    Layer: usize,
 };
 const Layer = union(enum) {
     LayerB: layerB,
@@ -34,67 +46,88 @@ const Layer = union(enum) {
 };
 
 const layerDescriptor = struct {
+    layer: uLayer,
+    activation: Activation,
+};
+
+const layerStorage = struct {
     layer: Layer,
     activation: Activation,
 };
 
-//pub fn NeurNetDescriptor(
-//    comptime inputSize: usize,
-//    comptime outputSize: usize,
-//    comptime layers: []usize,
-//    comptime layertype: type,
-//    comptime activations: []type,
-//) type {
-//
-//    return struct {
-//
-//        layers: []layerDescriptor,
-//
-//        const layer1 = layertype.Layer(inputSize, layers[0]);
-//        const Relu1 = activations[0].Activation(layers[0]);
-//        for(layers)|layer|{
-//
-//        };
-//
-//        const layerLast = layertype.Layer(layers[layers.len-1], outputSize);
-//        const Loss = nll.NLL(outputSize);
-//
-//    };
-//}
+fn layerFromDescriptor(alloc: std.mem.Allocator, comptime desc: layerDescriptor, batchSize: usize, inputSize: usize) layerStorage {
+    const layerType = switch (desc.layer) {
+        .Layer => |size| Layer{ .Layer = layer.init(
+            alloc,
+            batchSize,
+            inputSize,
+            size,
+        ) },
+        .LayerB => |size| Layer{ .LayerB = layerB.init(
+            alloc,
+            batchSize,
+            inputSize,
+            size,
+        ) },
+    };
+    return .{
+        .layer = layerType,
+        .activation = try desc.activation.init(
+            alloc,
+            batchSize,
+            layerType.outputSize,
+        ),
+    };
+}
 
 pub fn Neuralnet(
+    comptime layers: []const layerDescriptor,
     comptime inputSize: u32,
     comptime outputSize: u32,
-    comptime layerSize: u32,
     comptime batchSize: u32,
     comptime epochs: u32,
-    comptime layertype: type,
-    comptime activation: type,
     allocator: std.mem.Allocator,
-) ![4][]f64 {
-    const l1 = layertype.Layer(inputSize, layerSize);
-    const Relu1 = activation.Activation(layerSize);
-    const l2 = layertype.Layer(layerSize, outputSize);
+) ![layers.len]layerStorage {
+
+    //var descriptors: [layers.len]layerDescriptor = undefined;
+    std.debug.assert(outputSize == switch (layers[layers.len - 1].layer) {
+        .Layer, .LayerB => |l| l,
+    });
+
     const Loss = nll.NLL(outputSize);
 
     const testImageCount = 10000;
-    //testImageCount / INPUT_SIZE
-    //relu1.fwd_out / LAYER_SIZE
 
-    //var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    //const allocator = gpa.allocator();
     // Get MNIST data
     const mnist_data = try mnist.readMnist(allocator);
     defer mnist_data.deinit(allocator);
-    // Prep NN
-    var layer1: l1 = try l1.init(allocator, batchSize);
-    var relu1: Relu1 = try Relu1.init(allocator, batchSize);
-    var layer2: l2 = try l2.init(allocator, batchSize);
-    var loss: Loss = try Loss.init(allocator, batchSize);
 
-    var validationLayer1 = try l1.init(allocator, testImageCount);
-    var validationRelu = try Relu1.init(allocator, testImageCount);
-    var validationLayer2 = try l2.init(allocator, testImageCount);
+    comptime var previousLayerSize = inputSize;
+    var storage: [layers.len]layerStorage = undefined;
+    var validationStorage: [layers.len]layerStorage = undefined;
+    // Prep NN
+
+    inline for (layers, 0..) |layerD, i| {
+        const size = switch (layerD.layer) {
+            .Layer, .LayerB => |size| size,
+        };
+        defer previousLayerSize = size;
+        storage[i] = layerFromDescriptor(
+            allocator,
+            layerD,
+            batchSize,
+            previousLayerSize,
+        );
+        //const b = if (layerD.activation) |b| try b.init(allocator, batchSize) else null;
+        validationStorage[i] = layerFromDescriptor(
+            allocator,
+            layerD,
+            testImageCount,
+            previousLayerSize,
+        );
+    }
+
+    var loss: Loss = try Loss.init(allocator, batchSize);
 
     const t = std.time.milliTimestamp();
     std.debug.print("Training... \n", .{});
@@ -117,33 +150,51 @@ pub fn Neuralnet(
             const targets = mnist_data.train_labels[i * batchSize .. (i + 1) * batchSize];
 
             // Go forward and get loss
-            layer1.forward(inputs);
-            relu1.forward(layer1.outputs);
-            layer2.forward(relu1.fwd_out);
+            //layer1.forward(inputs);
+            //relu1.forward(layer1.outputs);
+            //layer2.forward(relu1.fwd_out);
 
-            loss.nll(layer2.outputs, targets) catch |err| {
+            var previousLayerOut = inputs;
+            for (&storage) |current| {
+                switch (current.layer) {
+                    inline else => |currentlayer| {
+                        currentlayer.forward(previousLayerOut);
+                        previousLayerOut = currentlayer.outputs;
+                        current.activation.forward(previousLayerOut);
+                        previousLayerOut = current.activation.fwd_out;
+                    },
+                }
+                //current.layer.forward(previousLayerOut);
+                //previousLayerOut = current.layer.outputs;
+                //current.activation.forward(previousLayerOut);
+                //previousLayerOut = current.activation.fwd_out;
+            }
+
+            loss.nll(previousLayerOut, targets) catch |err| {
                 const ct = std.time.milliTimestamp();
                 std.debug.print("batch number: {}, time delta: {}ms\n", .{ i * batchSize, ct - t });
                 std.debug.print("average loss for batch: {any}\n", .{
                     averageArray(loss.loss),
                 });
-                std.debug.print("\n l2 out:\n {any},\n", .{
-                    //outputs1.outputs,
-                    //layer1.outputs,
-                    //layer2.outputs,
-                    layer2.biases,
-                    //relu1,
-                });
                 return err;
             };
-
+            var previousGradient = loss.input_grads;
+            for (storage.len..0) |current| {
+                current.activation.backwards(previousGradient);
+                previousGradient = current.activation.bkw_out;
+                current.layer.backwards(previousGradient);
+                previousGradient = current.layer.input_grads;
+            }
             // Update network
-            layer2.backwards(loss.input_grads);
-            relu1.backwards(layer2.input_grads);
-            layer1.backwards(relu1.bkw_out);
+            //layer2.backwards(loss.input_grads);
+            //relu1.backwards(layer2.input_grads);
+            //layer1.backwards(relu1.bkw_out);
 
-            layer1.applyGradients(layer1.weight_grads, layer1.bias_grads);
-            layer2.applyGradients(layer2.weight_grads, layer2.bias_grads);
+            for (storage) |current| {
+                current.layer.applyGradients();
+            }
+            //layer1.applyGradients();
+            //layer2.applyGradients();
         }
 
         // Do validation
@@ -151,19 +202,32 @@ pub fn Neuralnet(
         var correct: f64 = 0;
         var b: usize = 0;
         const inputs = mnist_data.test_images;
-        validationLayer1.setWeights(layer1.weights);
-        validationLayer2.setWeights(layer2.weights);
-        validationLayer1.setBiases(layer1.biases);
-        validationLayer2.setBiases(layer2.biases);
-        //todo: make this work by feeding the structs into eachother for layer size check sanity
-        validationLayer1.forward(inputs);
-        validationRelu.forward(validationLayer1.outputs);
-        validationLayer2.forward(validationRelu.fwd_out);
+
+        for (validationStorage, 0..) |current, cur| {
+            current.layer.setWeights(storage[cur].layer.weights);
+            current.layer.setBiases(storage[cur].layer.biases);
+        }
+        var previousLayerOut = inputs;
+        for (validationStorage) |current| {
+            current.layer.forward(previousLayerOut);
+            previousLayerOut = current.layer.outputs;
+            current.activation.forward(previousLayerOut);
+            previousLayerOut = current.activation.fwd_out;
+        }
+
+        //validationLayer1.setWeights(layer1.weights);
+        //validationLayer2.setWeights(layer2.weights);
+        //validationLayer1.setBiases(layer1.biases);
+        //validationLayer2.setBiases(layer2.biases);
+
+        //validationLayer1.forward(inputs);
+        //validationRelu.forward(validationLayer1.outputs);
+        //validationLayer2.forward(validationRelu.fwd_out);
 
         while (b < 10000) : (b += 1) {
             var max_guess: f64 = std.math.floatMin(f64);
             var guess_index: usize = 0;
-            for (validationLayer2.outputs[b * outputSize .. (b + 1) * outputSize], 0..) |o, oi| {
+            for (previousLayerOut[b * outputSize .. (b + 1) * outputSize], 0..) |o, oi| {
                 if (o > max_guess) {
                     max_guess = o;
                     guess_index = oi;
@@ -178,7 +242,7 @@ pub fn Neuralnet(
     }
     const ct = std.time.milliTimestamp();
     std.debug.print(" time total: {}ms\n", .{ct - t});
-    return [_][]f64{ layer1.weights, layer1.biases, layer2.weights, layer2.biases };
+    return storage;
 }
 fn averageArray(arr: []f64) f64 {
     var sum: f64 = 0;
