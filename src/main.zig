@@ -14,7 +14,7 @@ pub fn main() !void {
     //const l = [_]usize{100};
     const NND = [_]layerDescriptor{ .{
         .layer = .{ .LayerB = 100 },
-        .activation = .gaussian,
+        .activation = .pyramid,
     }, .{
         .layer = .{ .LayerB = 10 },
         .activation = .none,
@@ -133,8 +133,6 @@ pub fn Neuralnet(
     comptime epochs: u32,
     allocator: std.mem.Allocator,
 ) ![layers.len]layerStorage {
-
-    //var descriptors: [layers.len]layerDescriptor = undefined;
     std.debug.assert(outputSize == switch (layers[layers.len - 1].layer) {
         .Layer, .LayerB => |l| l,
     });
@@ -151,7 +149,6 @@ pub fn Neuralnet(
     var storage: [layers.len]layerStorage = undefined;
     var validationStorage: [layers.len]layerStorage = undefined;
     // Prep NN
-
     inline for (layers, 0..) |layerD, i| {
         const size = switch (layerD.layer) {
             .Layer, .LayerB => |size| size,
@@ -194,9 +191,6 @@ pub fn Neuralnet(
             const targets = mnist_data.train_labels[i * batchSize .. (i + 1) * batchSize];
 
             // Go forward and get loss
-            //layer1.forward(inputs);
-            //relu1.forward(layer1.outputs);
-            //layer2.forward(relu1.fwd_out);
 
             var previousLayerOut = inputs;
             for (&storage) |*current| {
@@ -213,10 +207,6 @@ pub fn Neuralnet(
                         previousLayerOut = currentActivation.fwd_out;
                     },
                 }
-                //current.layer.forward(previousLayerOut);
-                //previousLayerOut = current.layer.outputs;
-                //current.activation.forward(previousLayerOut);
-                //previousLayerOut = current.activation.fwd_out;
             }
 
             loss.nll(previousLayerOut, targets) catch |err| {
@@ -234,7 +224,7 @@ pub fn Neuralnet(
                     .none => {},
                     inline else => |*currentActivation| {
                         currentActivation.backwards(previousGradient);
-                        previousLayerOut = currentActivation.bkw_out;
+                        previousGradient = currentActivation.bkw_out;
                     },
                 }
                 switch (storage[index].layer) {
@@ -245,9 +235,6 @@ pub fn Neuralnet(
                 }
             }
             // Update network
-            //layer2.backwards(loss.input_grads);
-            //relu1.backwards(layer2.input_grads);
-            //layer1.backwards(relu1.bkw_out);
 
             for (&storage) |*current| {
                 switch (current.layer) {
@@ -256,8 +243,6 @@ pub fn Neuralnet(
                     },
                 }
             }
-            //layer1.applyGradients();
-            //layer2.applyGradients();
         }
 
         // Do validation
@@ -293,15 +278,6 @@ pub fn Neuralnet(
                 },
             }
         }
-
-        //validationLayer1.setWeights(layer1.weights);
-        //validationLayer2.setWeights(layer2.weights);
-        //validationLayer1.setBiases(layer1.biases);
-        //validationLayer2.setBiases(layer2.biases);
-
-        //validationLayer1.forward(inputs);
-        //validationRelu.forward(validationLayer1.outputs);
-        //validationLayer2.forward(validationRelu.fwd_out);
 
         while (b < 10000) : (b += 1) {
             var max_guess: f64 = std.math.floatMin(f64);
