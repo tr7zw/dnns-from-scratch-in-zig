@@ -14,10 +14,10 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     //const l = [_]usize{100};
     const NND = [_]layerDescriptor{ .{
-        .layer = .{ .Layer = 100 },
+        .layer = .{ .LayerG = 100 },
         .activation = .none,
     }, .{
-        .layer = .{ .Layer = 10 },
+        .layer = .{ .LayerG = 10 },
         .activation = .none,
     } };
     _ = try Neuralnet(
@@ -88,7 +88,7 @@ fn layerFromDescriptor(alloc: std.mem.Allocator, comptime desc: layerDescriptor,
         },
         .LayerG => |size| blk: {
             lsize = size;
-            break :blk Layer{ .LayerB = try layerG.init(
+            break :blk Layer{ .LayerG = try layerG.init(
                 alloc,
                 batchSize,
                 inputSize,

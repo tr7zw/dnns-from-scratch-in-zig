@@ -27,15 +27,19 @@ pub fn init(
     std.debug.assert(outputSize != 0);
     std.debug.assert(batchSize != 0);
 
-    const mus: []f64 = try alloc.alloc(f64, outputSize);
+    var mus: []f64 = try alloc.alloc(f64, outputSize);
     const sigmas: []f64 = try alloc.alloc(f64, outputSize);
-    var prng = std.rand.DefaultPrng.init(123);
-    for (mus) |*mu| {
-        mu = prng.random().floatNorm(f64);
+    var prng = std.Random.DefaultPrng.init(123);
+
+    var m: usize = 0;
+    while (m < outputSize) : (m += 1) {
+        mus[m] = prng.random().floatNorm(f64) * 0.2;
     }
-    for (sigmas) |*sigma| {
-        sigma = 1.0; // initialize sigmas to 1
-    }
+    //for (mus[0..]) |mu| {
+    //    mu = prng.random().floatNorm(f64);
+    //}
+
+    @memset(sigmas, 1);
 
     return Self{
         .mus = mus,
