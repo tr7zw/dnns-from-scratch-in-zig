@@ -1,5 +1,6 @@
 const layer = @import("layer.zig");
 const layerB = @import("layerBias.zig");
+const layerG = @import("layerGauss.zig");
 const nll = @import("nll.zig");
 const mnist = @import("mnist.zig");
 const relu = @import("relu.zig");
@@ -13,10 +14,10 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     //const l = [_]usize{100};
     const NND = [_]layerDescriptor{ .{
-        .layer = .{ .LayerB = 100 },
-        .activation = .pyramid,
+        .layer = .{ .Layer = 100 },
+        .activation = .none,
     }, .{
-        .layer = .{ .LayerB = 10 },
+        .layer = .{ .Layer = 10 },
         .activation = .none,
     } };
     _ = try Neuralnet(
@@ -44,10 +45,12 @@ const Activation = union(uActivation) {
 };
 
 const uLayer = union(enum) {
+    LayerG: usize,
     LayerB: usize,
     Layer: usize,
 };
 const Layer = union(enum) {
+    LayerG: layerG,
     LayerB: layerB,
     Layer: layer,
 };
@@ -77,6 +80,15 @@ fn layerFromDescriptor(alloc: std.mem.Allocator, comptime desc: layerDescriptor,
         .LayerB => |size| blk: {
             lsize = size;
             break :blk Layer{ .LayerB = try layerB.init(
+                alloc,
+                batchSize,
+                inputSize,
+                size,
+            ) };
+        },
+        .LayerG => |size| blk: {
+            lsize = size;
+            break :blk Layer{ .LayerB = try layerG.init(
                 alloc,
                 batchSize,
                 inputSize,
@@ -134,7 +146,7 @@ pub fn Neuralnet(
     allocator: std.mem.Allocator,
 ) ![layers.len]layerStorage {
     std.debug.assert(outputSize == switch (layers[layers.len - 1].layer) {
-        .Layer, .LayerB => |l| l,
+        .Layer, .LayerB, .LayerG => |l| l,
     });
 
     const Loss = nll.NLL(outputSize);
@@ -151,7 +163,7 @@ pub fn Neuralnet(
     // Prep NN
     inline for (layers, 0..) |layerD, i| {
         const size = switch (layerD.layer) {
-            .Layer, .LayerB => |size| size,
+            .Layer, .LayerB, .LayerG => |size| size,
         };
         storage[i] = try layerFromDescriptor(
             allocator,
@@ -259,6 +271,12 @@ pub fn Neuralnet(
                 .LayerB => |*currentLayer| {
                     currentLayer.setWeights(storage[cur].layer.LayerB.weights);
                     currentLayer.setBiases(storage[cur].layer.LayerB.biases);
+                },
+                .LayerG => |*currentLayer| {
+                    currentLayer.setParameters(
+                        storage[cur].layer.LayerG.mus,
+                        storage[cur].layer.LayerG.sigmas,
+                    );
                 },
             }
         }
