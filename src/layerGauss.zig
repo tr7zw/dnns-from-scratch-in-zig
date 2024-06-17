@@ -33,13 +33,14 @@ pub fn init(
 
     var m: usize = 0;
     while (m < outputSize) : (m += 1) {
-        mus[m] = prng.random().floatNorm(f64) * 0.2;
+        mus[m] = prng.random().floatNorm(f64) * 10;
     }
-    //for (mus[0..]) |mu| {
-    //    mu = prng.random().floatNorm(f64);
-    //}
+    var s: usize = 0;
+    while (s < outputSize) : (s += 1) {
+        sigmas[s] = prng.random().floatNorm(f64) * 10;
+    }
 
-    @memset(sigmas, 1);
+    //@memset(sigmas, 1);
 
     return Self{
         .mus = mus,
@@ -98,27 +99,34 @@ pub fn backwards(self: *Self, grads: []f64) void {
         while (i < self.inputSize) : (i += 1) {
             sum += self.last_inputs[batch_start * self.inputSize + i];
         }
+
         var j: usize = 0;
         while (j < self.outputSize) : (j += 1) {
-            const grad_index = batch_start * self.outputSize + j;
-            const grad = grads[grad_index];
+            const grad = grads[batch_start * self.outputSize + j];
+            const gaussian = self.gaussian_bump(sum, j);
             const gaussian_derivative = self.gaussian_bump_derivative(sum, j);
 
+            // Gradient with respect to mu
+            self.mu_grads[j] += grad * gaussian_derivative;
+
+            // Gradient with respect to sigma
+            const diff = sum - self.mus[j];
+            self.sigma_grads[j] += grad * gaussian * (diff * diff) / (self.sigmas[j] * self.sigmas[j] * self.sigmas[j]);
+
+            // Gradient with respect to inputs
             var k: usize = 0;
             while (k < self.inputSize) : (k += 1) {
                 self.input_grads[batch_start * self.inputSize + k] += grad * gaussian_derivative;
             }
-
-            self.mu_grads[j] += grad * ((sum - self.mus[j]) / (self.sigmas[j] * self.sigmas[j])) * self.gaussian_bump(sum, j);
-            self.sigma_grads[j] += grad * (((sum - self.mus[j]) * (sum - self.mus[j])) / (self.sigmas[j] * self.sigmas[j] * self.sigmas[j])) * self.gaussian_bump(sum, j);
         }
     }
 }
 
 pub fn applyGradients(self: *Self) void {
+    const lr = 0.01;
     var i: usize = 0;
     while (i < self.outputSize) : (i += 1) {
-        self.mus[i] -= 0.01 * self.mu_grads[i];
-        self.sigmas[i] -= 0.01 * self.sigma_grads[i];
+        self.mus[i] -= lr * self.mu_grads[i];
+        self.sigmas[i] -= lr * self.sigma_grads[i];
     }
 }

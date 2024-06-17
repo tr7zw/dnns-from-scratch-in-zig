@@ -31,7 +31,7 @@ pub fn init(
     std.debug.assert(batchSize != 0);
     var weights: []f64 = try alloc.alloc(f64, inputSize * outputSize);
     var biases: []f64 = try alloc.alloc(f64, outputSize);
-    var prng = std.rand.DefaultPrng.init(123);
+    var prng = std.Random.DefaultPrng.init(123);
 
     var w: usize = 0;
     while (w < inputSize * outputSize) : (w += 1) {

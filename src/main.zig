@@ -14,11 +14,11 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     //const l = [_]usize{100};
     const NND = [_]layerDescriptor{ .{
-        .layer = .{ .LayerG = 100 },
+        .layer = .{ .LayerG = 200 },
         .activation = .none,
     }, .{
-        .layer = .{ .LayerG = 10 },
-        .activation = .none,
+        .layer = .{ .LayerB = 10 },
+        .activation = .relu,
     } };
     _ = try Neuralnet(
         &NND,
