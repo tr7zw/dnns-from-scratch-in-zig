@@ -1,6 +1,6 @@
 const layer = @import("layer.zig");
 const layerB = @import("layerBias.zig");
-const layerG = @import("layerGauss.zig");
+const layerG = @import("layerGrok.zig");
 const nll = @import("nll.zig");
 const mnist = @import("mnist.zig");
 const relu = @import("relu.zig");
@@ -14,11 +14,11 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     //const l = [_]usize{100};
     const NND = [_]layerDescriptor{ .{
-        .layer = .{ .LayerG = 200 },
-        .activation = .none,
+        .layer = .{ .LayerG = 100 },
+        .activation = .gaussian,
     }, .{
         .layer = .{ .LayerB = 10 },
-        .activation = .relu,
+        .activation = .none,
     } };
     _ = try Neuralnet(
         &NND,
@@ -190,14 +190,7 @@ pub fn Neuralnet(
         // Do training
         var i: usize = 0;
         while (i < 60000 / batchSize) : (i += 1) {
-            //if (i % (10000 / BATCH_SIZE) == 0) {
-            //    const ct = std.time.milliTimestamp();
-            //    std.debug.print("batch number: {}, time total: {}ms\n", .{ i * BATCH_SIZE, ct - t });
-            //    //t = ct;
-            //    std.debug.print("\n l2 bias:\n {any},\n", .{
-            //        layer2.biases,
-            //    });
-            //}
+
             // Prep inputs and targets
             const inputs = mnist_data.train_images[i * inputSize * batchSize .. (i + 1) * inputSize * batchSize];
             const targets = mnist_data.train_labels[i * batchSize .. (i + 1) * batchSize];
@@ -273,10 +266,8 @@ pub fn Neuralnet(
                     currentLayer.setBiases(storage[cur].layer.LayerB.biases);
                 },
                 .LayerG => |*currentLayer| {
-                    currentLayer.setParameters(
-                        storage[cur].layer.LayerG.mus,
-                        storage[cur].layer.LayerG.sigmas,
-                    );
+                    currentLayer.setWeights(storage[cur].layer.LayerG.weights);
+                    currentLayer.setBiases(storage[cur].layer.LayerG.biases);
                 },
             }
         }
@@ -311,6 +302,9 @@ pub fn Neuralnet(
             }
         }
         correct = correct / 10000;
+        const ct = std.time.milliTimestamp();
+        std.debug.print("time total: {}ms\n", .{ct - t});
+
         std.debug.print("Average Validation Accuracy: {}\n", .{correct});
     }
     const ct = std.time.milliTimestamp();
