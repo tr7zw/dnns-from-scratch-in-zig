@@ -56,6 +56,14 @@ pub fn init(
         .inputSize = inputSize,
     };
 }
+pub fn deinitBackwards(self: *Self, alloc: std.mem.Allocator) void {
+
+    //alloc.free(self.last_inputs);
+    //alloc.free(self.outputs);
+    alloc.free(self.weight_grads);
+    alloc.free(self.bias_grads);
+    alloc.free(self.input_grads);
+}
 
 pub fn forward(
     self: *Self,
@@ -107,43 +115,39 @@ pub fn backwards(
     }
 }
 
-const GV = struct { min: f64, max: f64, nearest: f64, avg: f64 };
+const GV = struct {
+    min: f64,
+    max: f64,
+};
 
 fn GradientValues(arr: []f64) GV {
-    var sum: f64 = 0;
     var min: f64 = std.math.floatMax(f64);
     var max: f64 = -min;
-    var nearest: f64 = min;
     for (arr) |elem| {
-        sum += elem;
         if (min > elem) min = elem;
         if (max < elem) max = elem;
-        if (nearest > @abs(elem)) nearest = elem;
     }
-
     return GV{
         .max = max,
-        .nearest = nearest,
         .min = min,
-        .avg = sum / @as(f64, @floatFromInt(arr.len)),
     };
 }
 
 pub fn applyGradients(self: *Self) void {
     const errorsize = GradientValues(self.weight_grads);
-    const range = errorsize.max - errorsize.min;
-
+    const range = errorsize.max - errorsize.min; //multiply based on a pseudo validation set?
+    const learnRate = 0.001;
     var i: usize = 0;
     while (i < self.inputSize * self.outputSize) : (i += 1) {
         const grad = self.weight_grads[i];
 
         const adj = std.math.sign(grad) * (std.math.pow(f64, @abs(grad / range) - 0.5, 2) + 0.5) * range;
 
-        self.weights[i] -= 0.01 * adj; // self.weight_grads[i];
+        self.weights[i] -= learnRate * adj;
     }
 
     var o: usize = 0;
     while (o < self.outputSize) : (o += 1) {
-        self.biases[o] -= 0.01 * self.bias_grads[o];
+        self.biases[o] -= learnRate * self.bias_grads[o];
     }
 }

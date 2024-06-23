@@ -14,12 +14,22 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     //const l = [_]usize{100};
     const NND = [_]layerDescriptor{ .{
-        .layer = .{ .LayerG = 100 },
-        .activation = .gaussian,
+        .layer = .{ .LayerG = 25 },
+        .activation = .relu,
+    }, .{
+        .layer = .{ .LayerG = 25 },
+        .activation = .relu,
     }, .{
         .layer = .{ .LayerB = 10 },
         .activation = .none,
     } };
+    //const file = try std.fs.cwd().createFile(
+    //    "NNdata.txt",
+    //    .{ .read = true },
+    //);
+    //defer file.close();
+
+    //try file.writeAll(
     _ = try Neuralnet(
         &NND,
         784,
@@ -120,17 +130,6 @@ fn layerFromDescriptor(alloc: std.mem.Allocator, comptime desc: layerDescriptor,
         },
         .none => .none,
     };
-    //todo: surely this can be done better.
-    //const activation = switch (desc.activation) {
-    //    .relu => Activation{ .relu = relu },
-    //    .pyramid => Activation{ .pyramid = pyramid },
-    //    .gaussian => Activation{ .gaussian = gaussian },
-    //    .none => Activation{.none},?
-    //}.init(
-    //    alloc,
-    //    batchSize,
-    //    layerType.outputSize,
-    //);
     return .{
         .layer = layerType,
         .activation = activation,
@@ -177,6 +176,9 @@ pub fn Neuralnet(
             testImageCount,
             previousLayerSize,
         );
+        switch (validationStorage[i].layer) {
+            inline else => |*l| l.deinitBackwards(allocator),
+        }
         previousLayerSize = size;
     }
 

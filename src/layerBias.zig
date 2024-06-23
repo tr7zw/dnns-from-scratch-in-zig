@@ -57,6 +57,15 @@ pub fn init(
     };
 }
 
+pub fn deinitBackwards(self: *Self, alloc: std.mem.Allocator) void {
+
+    //alloc.free(self.last_inputs);
+    //alloc.free(self.outputs);
+    alloc.free(self.weight_grads);
+    alloc.free(self.bias_grads);
+    alloc.free(self.input_grads);
+}
+
 pub fn forward(
     self: *Self,
     inputs: []const f64,
