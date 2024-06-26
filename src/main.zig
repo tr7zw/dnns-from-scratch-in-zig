@@ -40,6 +40,7 @@ pub fn main() !void {
     std.debug.assert(outputSize == switch (layers[storage.len - 1].layer) {
         .Layer, .LayerB, .LayerG => |l| l,
     });
+    const reader = file.reader();
     // Prep NN
     inline for (layers, 0..) |lay, i| {
         const size = switch (lay.layer) {
@@ -63,15 +64,15 @@ pub fn main() !void {
         if (readfile) {
             switch (storage[i].layer) {
                 .Layer => |*l| {
-                    try l.readWeights(file.reader()); //std.mem.bytesAsSlice(f64, try reader.read([size * previousLayerSize * 4]u8{})));
+                    try l.readWeights(reader); //std.mem.bytesAsSlice(f64, try reader.read([size * previousLayerSize * 4]u8{})));
                 },
                 .LayerB => |*l| {
-                    try l.readWeights(file.reader());
-                    try l.readBiases(file.reader());
+                    try l.readWeights(reader);
+                    try l.readBiases(reader);
                 },
                 .LayerG => |*l| {
-                    try l.readWeights(file.reader());
-                    try l.readBiases(file.reader());
+                    try l.readWeights(reader);
+                    try l.readBiases(reader);
                 },
             }
         }
