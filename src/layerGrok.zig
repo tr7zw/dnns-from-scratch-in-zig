@@ -19,7 +19,12 @@ pub fn setWeights(self: *Self, weights: []f64) void {
 pub fn setBiases(self: *Self, biases: []f64) void {
     self.biases = biases;
 }
-
+pub fn readBiases(self: *Self, weights: anytype) !void {
+    _ = try weights.readAll(std.mem.sliceAsBytes(self.biases));
+}
+pub fn readWeights(self: *Self, weights: anytype) !void {
+    _ = try weights.readAll(std.mem.sliceAsBytes(self.weights));
+}
 pub fn init(
     alloc: std.mem.Allocator,
     batchSize: usize,
@@ -136,12 +141,13 @@ fn GradientValues(arr: []f64) GV {
 pub fn applyGradients(self: *Self) void {
     const errorsize = GradientValues(self.weight_grads);
     const range = errorsize.max - errorsize.min; //multiply based on a pseudo validation set?
-    const learnRate = 0.001;
+    const learnRate = 0.01;
     var i: usize = 0;
     while (i < self.inputSize * self.outputSize) : (i += 1) {
         const grad = self.weight_grads[i];
 
-        const adj = std.math.sign(grad) * (std.math.pow(f64, @abs(grad / range) - 0.5, 2) + 0.5) * range;
+        const adjscaled = @abs(grad / range) - 0.5;
+        const adj = std.math.sign(grad) * (std.math.sign(adjscaled) * std.math.pow(f64, @abs(adjscaled), 2) + 0.5) * range;
 
         self.weights[i] -= learnRate * adj;
     }
