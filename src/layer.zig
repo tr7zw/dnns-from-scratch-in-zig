@@ -16,7 +16,7 @@ pub fn setWeights(self: *Self, weights: []f64) void {
 }
 
 pub fn readWeights(self: *Self, weights: anytype) !void {
-    _ = try weights.readAll(std.mem.sliceAsBytes(self.weights));
+    _ = try weights.read(std.mem.sliceAsBytes(self.weights));
 }
 
 pub fn init(

@@ -10,13 +10,17 @@ const gaussian = @import("gaussian.zig");
 const std = @import("std");
 const timer = false;
 const readfile = true;
+const writeFile = true;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     const file = try std.fs.cwd().createFile(
         "data/Params_G100_B10.f64",
-        .{ .read = true },
+        .{
+            .read = true,
+            .truncate = false,
+        },
     );
     defer file.close();
 
@@ -40,7 +44,7 @@ pub fn main() !void {
     std.debug.assert(outputSize == switch (layers[storage.len - 1].layer) {
         .Layer, .LayerB, .LayerG => |l| l,
     });
-    const reader = file.reader();
+    var reader = std.io.bufferedReader(file.reader());
     // Prep NN
     inline for (layers, 0..) |lay, i| {
         const size = switch (lay.layer) {
@@ -64,15 +68,15 @@ pub fn main() !void {
         if (readfile) {
             switch (storage[i].layer) {
                 .Layer => |*l| {
-                    try l.readWeights(reader); //std.mem.bytesAsSlice(f64, try reader.read([size * previousLayerSize * 4]u8{})));
+                    try l.readWeights(&reader); //std.mem.bytesAsSlice(f64, try reader.read([size * previousLayerSize * 4]u8{})));
                 },
                 .LayerB => |*l| {
-                    try l.readWeights(reader);
-                    try l.readBiases(reader);
+                    try l.readWeights(&reader);
+                    try l.readBiases(&reader);
                 },
                 .LayerG => |*l| {
-                    try l.readWeights(reader);
-                    try l.readBiases(reader);
+                    try l.readWeights(&reader);
+                    try l.readBiases(&reader);
                 },
             }
         }
@@ -85,25 +89,27 @@ pub fn main() !void {
         inputSize,
         10,
         batchSize,
-        1,
+        2,
         allocator,
     );
-    for (k) |l| {
-        switch (l.layer) {
-            .Layer => |la| {
-                //try params.appendSlice(std.fmt.comptimePrint("wi{}o{}\n", .{ la.inputSize, la.outputSize }));
-                try file.writeAll(std.mem.sliceAsBytes(la.weights));
-            },
-            .LayerB => |la| {
-                //try params.appendSlice(std.fmt.comptimePrint("wbi{}o{}\n", .{ la.inputSize, la.outputSize }));
-                try file.writeAll(std.mem.sliceAsBytes(la.weights));
-                try file.writeAll(std.mem.sliceAsBytes(la.biases));
-            },
-            .LayerG => |la| {
-                //try params.appendSlice(std.fmt.comptimePrint("wbi{}o{}\n", .{ la.inputSize, la.outputSize }));
-                try file.writeAll(std.mem.sliceAsBytes(la.weights));
-                try file.writeAll(std.mem.sliceAsBytes(la.biases));
-            },
+    if (writeFile) {
+        for (k) |l| {
+            switch (l.layer) {
+                .Layer => |la| {
+                    //try params.appendSlice(std.fmt.comptimePrint("wi{}o{}\n", .{ la.inputSize, la.outputSize }));
+                    try file.writeAll(std.mem.sliceAsBytes(la.weights));
+                },
+                .LayerB => |la| {
+                    //try params.appendSlice(std.fmt.comptimePrint("wbi{}o{}\n", .{ la.inputSize, la.outputSize }));
+                    try file.writeAll(std.mem.sliceAsBytes(la.weights));
+                    try file.writeAll(std.mem.sliceAsBytes(la.biases));
+                },
+                .LayerG => |la| {
+                    //try params.appendSlice(std.fmt.comptimePrint("wbi{}o{}\n", .{ la.inputSize, la.outputSize }));
+                    try file.writeAll(std.mem.sliceAsBytes(la.weights));
+                    try file.writeAll(std.mem.sliceAsBytes(la.biases));
+                },
+            }
         }
     }
 }

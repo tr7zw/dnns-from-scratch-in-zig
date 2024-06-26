@@ -20,10 +20,12 @@ pub fn setBiases(self: *Self, biases: []f64) void {
     self.biases = biases;
 }
 pub fn readBiases(self: *Self, weights: anytype) !void {
-    _ = try weights.readAll(std.mem.sliceAsBytes(self.biases));
+    _ = try weights.read(std.mem.sliceAsBytes(self.biases));
 }
 pub fn readWeights(self: *Self, weights: anytype) !void {
-    _ = try weights.readAll(std.mem.sliceAsBytes(self.weights));
+    //std.debug.print("deez: {any};", .{self.weights});
+    _ = try weights.read(std.mem.sliceAsBytes(self.weights));
+    //std.debug.print("deez: {any};", .{self.weights});
 }
 pub fn init(
     alloc: std.mem.Allocator,
