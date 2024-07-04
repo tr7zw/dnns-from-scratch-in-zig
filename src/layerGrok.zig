@@ -10,6 +10,8 @@ input_grads: []f64,
 batchSize: usize,
 inputSize: usize,
 outputSize: usize,
+
+rounds: f64,
 const Self = @This();
 
 pub fn setWeights(self: *Self, weights: []f64) void {
@@ -61,6 +63,7 @@ pub fn init(
         .batchSize = batchSize,
         .outputSize = outputSize,
         .inputSize = inputSize,
+        .rounds = 0,
     };
 }
 pub fn deinitBackwards(self: *Self, alloc: std.mem.Allocator) void {
@@ -103,18 +106,21 @@ pub fn backwards(
     std.debug.assert(self.last_inputs.len == self.inputSize * self.batchSize);
 
     @memset(self.input_grads, 0);
+    //const lgrad: []f64 = undefined;
+    //@memcpy(lgrad, self.weight_grads);
+
     @memset(self.weight_grads, 0);
     @memset(self.bias_grads, 0);
-
+    self.rounds += 1;
     var b: usize = 0;
     while (b < self.batchSize) : (b += 1) {
         var o: usize = 0;
         while (o < self.outputSize) : (o += 1) {
-            self.bias_grads[o] += grads[b * self.outputSize + o] / @as(f64, @floatFromInt(self.batchSize));
+            self.bias_grads[o] -= std.math.pow(f64, (self.bias_grads[o] - grads[b * self.outputSize + o] / @as(f64, @floatFromInt(self.batchSize))), 1);
             var i: usize = 0;
             while (i < self.inputSize) : (i += 1) {
                 self.weight_grads[i * self.outputSize + o] +=
-                    (grads[b * self.outputSize + o] * self.last_inputs[b * self.inputSize + i]) / @as(f64, @floatFromInt(self.batchSize));
+                    std.math.pow(f64, self.weight_grads[i * self.outputSize + o] - (grads[b * self.outputSize + o] * self.last_inputs[b * self.inputSize + i]) / @as(f64, @floatFromInt(self.batchSize)), 1);
                 self.input_grads[b * self.inputSize + i] +=
                     grads[b * self.outputSize + o] * self.weights[i * self.outputSize + o];
             }
@@ -122,40 +128,16 @@ pub fn backwards(
     }
 }
 
-const GV = struct {
-    min: f64,
-    max: f64,
-};
-
-fn GradientValues(arr: []f64) GV {
-    var min: f64 = std.math.floatMax(f64);
-    var max: f64 = -min;
-    for (arr) |elem| {
-        if (min > elem) min = elem;
-        if (max < elem) max = elem;
-    }
-    return GV{
-        .max = max,
-        .min = min,
-    };
-}
+//todo try minmax range with sin/cosine
 
 pub fn applyGradients(self: *Self) void {
-    const errorsize = GradientValues(self.weight_grads);
-    const range = errorsize.max - errorsize.min; //multiply based on a pseudo validation set?
-    const learnRate = 0.01;
     var i: usize = 0;
     while (i < self.inputSize * self.outputSize) : (i += 1) {
-        const grad = self.weight_grads[i];
-
-        const adjscaled = @abs(grad / range) - 0.5;
-        const adj = std.math.sign(grad) * (std.math.sign(adjscaled) * std.math.pow(f64, @abs(adjscaled), 2) + 0.5) * range;
-
-        self.weights[i] -= learnRate * adj;
+        self.weights[i] -= 0.01 * self.weight_grads[i];
     }
 
     var o: usize = 0;
     while (o < self.outputSize) : (o += 1) {
-        self.biases[o] -= learnRate * self.bias_grads[o];
+        self.biases[o] -= 0.01 * self.bias_grads[o];
     }
 }

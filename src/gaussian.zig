@@ -7,8 +7,9 @@ batchSize: usize,
 size: usize,
 
 const Self = @This();
-pub const mu: f64 = 1.0; // center of the bump
-pub const sigma: f64 = 2.0; // width of the bump
+pub const mu = 1.0; // center of the bump
+pub const sigma = 1.0; // width of the bump
+const epsilon = 0.01;
 
 pub fn init(
     alloc: std.mem.Allocator,
@@ -23,15 +24,25 @@ pub fn init(
         .size = size,
     };
 }
-
 fn gaussian_bump(x: f64) f64 {
     const exponent = -((x - mu) * (x - mu)) / (2.0 * sigma * sigma);
-    return @exp(exponent);
+    const gaussian = @exp(exponent);
+    if (gaussian > epsilon) {
+        return gaussian;
+    } else {
+        return epsilon * (x - 2 * mu);
+    }
 }
 
 fn gaussian_bump_derivative(x: f64) f64 {
     const exponent = -((x - mu) * (x - mu)) / (2.0 * sigma * sigma);
-    return -((x - mu) / (sigma * sigma)) * @exp(exponent);
+    const gaussian = @exp(exponent);
+    const gaussian_derivative = -((x - mu) / (sigma * sigma)) * gaussian;
+    if (@abs(gaussian_derivative) > epsilon) {
+        return gaussian_derivative;
+    } else {
+        return epsilon * std.math.sign(mu - x);
+    }
 }
 
 pub fn forward(self: *Self, inputs: []f64) void {

@@ -9,20 +9,41 @@ const gaussian = @import("gaussian.zig");
 
 const std = @import("std");
 const timer = false;
-const readfile = true;
+const readfile = false;
 const writeFile = true;
+
+const typesignature = "B25RGPR_B10R.f64";
+
+const graphfuncs = false;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+
     const allocator = gpa.allocator();
+
+    if (graphfuncs) {
+        var inputs: [200]f64 = undefined;
+        var pyr = try pyramid.init(allocator, 1, 200);
+        for (inputs, 0..) |_, i| {
+            inputs[i] = (-100 + @as(f64, @floatFromInt(i))) / 33;
+        }
+
+        pyr.forward(&inputs);
+        pyr.backwards(&inputs);
+        for (inputs, 0..) |_, i| {
+            std.debug.print("in: {any}\n", .{inputs[i]});
+            std.debug.print("fwd: {any}\n", .{pyr.fwd_out[i]});
+            std.debug.print("bkw: {any}\n", .{pyr.bkw_out[i]});
+        }
+    }
+
     const file = try std.fs.cwd().createFile(
-        "data/Params_G100_B10.f64",
+        "data/Params_" ++ typesignature,
         .{
             .read = true,
             .truncate = false,
         },
     );
-    defer file.close();
 
     //const l = [_]usize{100};
 
@@ -31,11 +52,20 @@ pub fn main() !void {
     const batchSize = 100;
     const testImageCount = 10000;
     const layers = [_]layerDescriptor{ .{
-        .layer = .{ .LayerG = 100 },
+        .layer = .{ .LayerB = 25 },
+        .activation = .relu,
+    }, .{
+        .layer = .{ .LayerB = 25 },
+        .activation = .gaussian,
+    }, .{
+        .layer = .{ .LayerB = 25 },
+        .activation = .pyramid,
+    }, .{
+        .layer = .{ .LayerB = 25 },
         .activation = .relu,
     }, .{
         .layer = .{ .LayerB = 10 },
-        .activation = .none,
+        .activation = .relu,
     } };
     comptime var previousLayerSize = inputSize;
     var storage: [layers.len]layerStorage = undefined;
@@ -83,31 +113,42 @@ pub fn main() !void {
         previousLayerSize = size;
     }
 
+    file.close();
+
     const k = try Neuralnet(
         &validationStorage,
         &storage,
         inputSize,
         10,
         batchSize,
-        2,
+        40,
         allocator,
     );
+
     if (writeFile) {
+        const filew = try std.fs.cwd().createFile(
+            "data/Params_" ++ typesignature,
+            .{
+                .read = true,
+                .truncate = true,
+            },
+        );
+        defer filew.close();
         for (k) |l| {
             switch (l.layer) {
                 .Layer => |la| {
                     //try params.appendSlice(std.fmt.comptimePrint("wi{}o{}\n", .{ la.inputSize, la.outputSize }));
-                    try file.writeAll(std.mem.sliceAsBytes(la.weights));
+                    try filew.writeAll(std.mem.sliceAsBytes(la.weights));
                 },
                 .LayerB => |la| {
                     //try params.appendSlice(std.fmt.comptimePrint("wbi{}o{}\n", .{ la.inputSize, la.outputSize }));
-                    try file.writeAll(std.mem.sliceAsBytes(la.weights));
-                    try file.writeAll(std.mem.sliceAsBytes(la.biases));
+                    try filew.writeAll(std.mem.sliceAsBytes(la.weights));
+                    try filew.writeAll(std.mem.sliceAsBytes(la.biases));
                 },
                 .LayerG => |la| {
                     //try params.appendSlice(std.fmt.comptimePrint("wbi{}o{}\n", .{ la.inputSize, la.outputSize }));
-                    try file.writeAll(std.mem.sliceAsBytes(la.weights));
-                    try file.writeAll(std.mem.sliceAsBytes(la.biases));
+                    try filew.writeAll(std.mem.sliceAsBytes(la.weights));
+                    try filew.writeAll(std.mem.sliceAsBytes(la.biases));
                 },
             }
         }
@@ -222,32 +263,6 @@ pub fn Neuralnet(
     const mnist_data = try mnist.readMnist(allocator);
     defer mnist_data.deinit(allocator);
 
-    //comptime var previousLayerSize = inputSize;
-    //var storage: [layers.len]layerStorage = undefined;
-    //var validationStorage: [layers.len]layerStorage = undefined;
-    // Prep NN
-    //inline for (layers, 0..) |layerD, i| {
-    //    const size = switch (layerD.layer) {
-    //        .Layer, .LayerB, .LayerG => |size| size,
-    //    };
-    //    storage[i] = try layerFromDescriptor(
-    //        allocator,
-    //        layerD,
-    //        batchSize,
-    //        previousLayerSize,
-    //    );
-    //    validationStorage[i] = try layerFromDescriptor(
-    //        allocator,
-    //        layerD,
-    //        testImageCount,
-    //        previousLayerSize,
-    //    );
-    //    switch (validationStorage[i].layer) {
-    //        inline else => |*l| l.deinitBackwards(allocator),
-    //    }
-    //    previousLayerSize = size;
-    //}
-
     var loss: Loss = try Loss.init(allocator, batchSize);
 
     const t = std.time.milliTimestamp();
@@ -281,10 +296,15 @@ pub fn Neuralnet(
                     },
                 }
             }
+            //if (i % (1000 / batchSize) == 1) {
+            //    std.debug.print("{any}\n", .{
+            //        averageArray(loss.loss),
+            //    });
+            //}
 
             loss.nll(previousLayerOut, targets) catch |err| {
                 //std.debug.print("batch number: {}, time delta: {}ms\n", .{ i * batchSize, std.time.milliTimestamp() - t });
-                std.debug.print("average loss for batch: {any}\n", .{
+                std.debug.print("{any}\n", .{
                     averageArray(loss.loss),
                 });
                 return err;
@@ -373,7 +393,7 @@ pub fn Neuralnet(
             std.debug.print("time total: {}ms\n", .{std.time.milliTimestamp() - t});
         }
 
-        std.debug.print("Average Validation Accuracy: {}\n", .{correct});
+        std.debug.print("{}\n", .{correct});
     }
     const ct = std.time.milliTimestamp();
     std.debug.print(" time total: {}ms\n", .{ct - t});

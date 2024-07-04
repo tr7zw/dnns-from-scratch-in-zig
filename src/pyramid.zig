@@ -38,7 +38,7 @@ pub fn forward(self: *Self, inputs: []f64) void {
         } else if (x < 2 * threshold) {
             self.fwd_out[i] = 2 * threshold - x;
         } else {
-            self.fwd_out[i] = leak_slope * (x - 2 * threshold);
+            self.fwd_out[i] = leak_slope * (2 * threshold - x);
         }
     }
     self.last_inputs = inputs;
@@ -56,7 +56,7 @@ pub fn backwards(self: *Self, grads: []f64) void {
         } else if (x < 2 * threshold) {
             self.bkw_out[i] = -grads[i];
         } else {
-            self.bkw_out[i] = leak_slope * grads[i];
+            self.bkw_out[i] = -leak_slope * grads[i];
         }
     }
 }
