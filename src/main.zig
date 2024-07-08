@@ -12,7 +12,7 @@ const timer = false;
 const readfile = false;
 const writeFile = true;
 
-const typesignature = "B25RGPR_B10R.f64";
+const typesignature = "G25RRRR_G10G.f64";
 
 const graphfuncs = false;
 
@@ -23,17 +23,17 @@ pub fn main() !void {
 
     if (graphfuncs) {
         var inputs: [200]f64 = undefined;
-        var pyr = try pyramid.init(allocator, 1, 200);
+        var pyr = try gaussian.init(allocator, 1, 200);
         for (inputs, 0..) |_, i| {
-            inputs[i] = (-100 + @as(f64, @floatFromInt(i))) / 33;
+            inputs[i] = (-100 + @as(f64, @floatFromInt(i))) / 20;
         }
 
         pyr.forward(&inputs);
         pyr.backwards(&inputs);
         for (inputs, 0..) |_, i| {
-            std.debug.print("in: {any}\n", .{inputs[i]});
-            std.debug.print("fwd: {any}\n", .{pyr.fwd_out[i]});
-            std.debug.print("bkw: {any}\n", .{pyr.bkw_out[i]});
+            std.debug.print("{d:.4},", .{inputs[i]});
+            std.debug.print("{d:.4},", .{gaussian.leaky_gaussian(inputs[i])});
+            std.debug.print("{d:.4}\n", .{gaussian.leaky_gaussian_derivative(inputs[i])});
         }
     }
 
@@ -52,20 +52,20 @@ pub fn main() !void {
     const batchSize = 100;
     const testImageCount = 10000;
     const layers = [_]layerDescriptor{ .{
-        .layer = .{ .LayerB = 25 },
+        .layer = .{ .LayerG = 25 },
         .activation = .relu,
     }, .{
-        .layer = .{ .LayerB = 25 },
+        .layer = .{ .LayerG = 25 },
+        .activation = .relu,
+    }, .{
+        .layer = .{ .LayerG = 25 },
+        .activation = .relu,
+    }, .{
+        .layer = .{ .LayerG = 25 },
+        .activation = .relu,
+    }, .{
+        .layer = .{ .LayerG = 10 },
         .activation = .gaussian,
-    }, .{
-        .layer = .{ .LayerB = 25 },
-        .activation = .pyramid,
-    }, .{
-        .layer = .{ .LayerB = 25 },
-        .activation = .relu,
-    }, .{
-        .layer = .{ .LayerB = 10 },
-        .activation = .relu,
     } };
     comptime var previousLayerSize = inputSize;
     var storage: [layers.len]layerStorage = undefined;
@@ -105,8 +105,7 @@ pub fn main() !void {
                     try l.readBiases(&reader);
                 },
                 .LayerG => |*l| {
-                    try l.readWeights(&reader);
-                    try l.readBiases(&reader);
+                    try l.readParams(&reader);
                 },
             }
         }
@@ -149,6 +148,7 @@ pub fn main() !void {
                     //try params.appendSlice(std.fmt.comptimePrint("wbi{}o{}\n", .{ la.inputSize, la.outputSize }));
                     try filew.writeAll(std.mem.sliceAsBytes(la.weights));
                     try filew.writeAll(std.mem.sliceAsBytes(la.biases));
+                    try filew.writeAll(std.mem.sliceAsBytes(la.average_weight_gradient));
                 },
             }
         }
@@ -296,7 +296,7 @@ pub fn Neuralnet(
                     },
                 }
             }
-            //if (i % (1000 / batchSize) == 1) {
+            //if (e > 20 and i % (1000 / batchSize) == 1) {
             //    std.debug.print("{any}\n", .{
             //        averageArray(loss.loss),
             //    });
