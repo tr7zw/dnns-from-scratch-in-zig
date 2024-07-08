@@ -76,6 +76,7 @@ pub fn deinitBackwards(self: *Self, alloc: std.mem.Allocator) void {
     alloc.free(self.input_grads);
 }
 
+const dropOutRate = 0.1;
 pub fn forward(
     self: *Self,
     inputs: []const f64,
@@ -134,23 +135,61 @@ pub fn backwards(
     }
 }
 
-const avgPriority = 0.5;
+const GV = struct {
+    min: f64,
+    max: f64,
+    avg: f64,
+};
+
+fn GradientValues(arr: []f64) GV {
+    var min: f64 = std.math.floatMax(f64);
+    var max: f64 = -min;
+    var sum: f64 = 0.000000001;
+    for (arr) |elem| {
+        if (min > elem) min = elem;
+        if (max < elem) max = elem;
+        sum += elem;
+    }
+    return GV{
+        .max = max,
+        .min = min,
+        .avg = sum / @as(f64, @floatFromInt(arr.len)),
+    };
+}
+
+fn adjWeights(arr: []f64, gv: GV) []f64 {
+    const range = @max(0.000000001, @abs(gv.max - gv.min));
+    for (0..arr.len) |i| {
+        const v = ((arr[i] - gv.avg) / range * 2 + 1);
+        arr[i] = (std.math.sign(v) + 0.000000001) * @max(0.01, @abs(v));
+        if (std.math.sign(v) == 0)
+            std.debug.print("nan?{} ", .{v});
+    }
+    return arr;
+}
+
+const avgPriority = 10;
+//todo gradient average replaced with just .5 to see if it seems similar with regression values.
 
 pub fn applyGradients(self: *Self) void {
     var i: usize = 0;
     while (i < self.inputSize * self.outputSize) : (i += 1) {
         const w = self.weight_grads[i];
-        const wa = std.math.sign(self.average_weight_gradient[i]) * @max(0.001, @abs(self.average_weight_gradient[i]));
+        const wa = (std.math.sign(self.average_weight_gradient[i]) + 0.000001) * @max(0.001, @abs(self.average_weight_gradient[i]));
         const f = (w - wa) / wa;
         const c = avgPriority * @max(0.001, @abs(wa));
         const p = 1 / (1 / c + f) / c;
-        self.weights[i] -= 0.01 * w * p;
-        self.weights[i] -= 0.0000001 * std.math.sign(self.weights[i]) * @abs(self.weights[i] * self.weights[i]);
-        if (@abs(self.weights[i]) < 0.0000001) {
-            self.weights[i] = prng.random().floatNorm(f64) * 0.2;
-            self.average_weight_gradient[i] = prng.random().floatNorm(f64) * 0.2;
-        }
+        _ = p;
+        self.weights[i] -= 0.01 * w; // * p;
+
+        //self.weights[i] -= 0.0000001 * std.math.sign(self.weights[i]) * @abs(self.weights[i] * self.weights[i]);
+        //if (@abs(self.weights[i]) < 0.0000001) {
+        //    self.weights[i] = prng.random().floatNorm(f64) * 0.2;
+        //    self.average_weight_gradient[i] = prng.random().floatNorm(f64) * 0.2;
+        //}
     }
+    const gv = GradientValues(self.weights);
+    self.weights = adjWeights(self.weight_grads, gv);
 
     var o: usize = 0;
     while (o < self.outputSize) : (o += 1) {

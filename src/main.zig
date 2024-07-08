@@ -304,7 +304,7 @@ pub fn Neuralnet(
 
             loss.nll(previousLayerOut, targets) catch |err| {
                 //std.debug.print("batch number: {}, time delta: {}ms\n", .{ i * batchSize, std.time.milliTimestamp() - t });
-                std.debug.print("{any}\n", .{
+                std.debug.print("loss err: {any}\n", .{
                     averageArray(loss.loss),
                 });
                 return err;

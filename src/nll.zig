@@ -37,8 +37,18 @@ pub fn NLL(
                         return error.divisionbyinf;
                     }
                 }
-                if (sum == 0) return error.divisionbyzero;
-                if (sum == std.math.inf(f64)) return error.divisionbyinf;
+                const s = sum;
+                //std.math.sign(sum + 0.0000001) *
+                sum = (std.math.sign(sum) + 0.000000001) * @max(0.0000001, @abs(sum));
+                if (sum >= std.math.inf(f64)) return error.divisionbyinf;
+                if (std.math.sign(sum) == 0) {
+                    std.debug.print("sum:{}\n", .{s});
+                    return error.sumisnan;
+                }
+                if (sum == 0) {
+                    return error.divisionbyzero;
+                }
+
                 if (GiveLoss) {
                     self.loss[b] = -1 * @log(std.math.exp(inputs[b * inputSize + targets[b]]) / sum);
                 }
