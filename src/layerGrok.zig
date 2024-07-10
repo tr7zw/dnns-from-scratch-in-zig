@@ -1,5 +1,6 @@
 const std = @import("std");
 
+dropOut: []bool,
 weights: []f64,
 biases: []f64,
 last_inputs: []const f64,
@@ -11,9 +12,13 @@ input_grads: []f64,
 batchSize: usize,
 inputSize: usize,
 outputSize: usize,
+nodrop: f64 = 1.0,
 
 rounds: f64,
 const Self = @This();
+const dropOutRate = 0.01;
+
+const scale = 1.0 / (1.0 - dropOutRate);
 
 pub fn setWeights(self: *Self, weights: []f64) void {
     self.weights = weights;
@@ -58,6 +63,7 @@ pub fn init(
 
     @memset(wg, 1);
     return Self{
+        .dropOut = try alloc.alloc(bool, inputSize * outputSize),
         .weights = weights,
         .biases = biases,
         .last_inputs = undefined,
@@ -70,19 +76,21 @@ pub fn init(
         .outputSize = outputSize,
         .inputSize = inputSize,
         .rounds = 0,
+        .nodrop = 1.0,
     };
 }
+
 pub fn deinitBackwards(self: *Self, alloc: std.mem.Allocator) void {
 
     //alloc.free(self.last_inputs);
     //alloc.free(self.outputs);
+    self.nodrop = scale;
     alloc.free(self.average_weight_gradient);
     alloc.free(self.weight_grads);
     alloc.free(self.bias_grads);
     alloc.free(self.input_grads);
 }
 
-const dropOutRate = 0.1;
 pub fn forward(
     self: *Self,
     inputs: []const f64,
@@ -92,6 +100,12 @@ pub fn forward(
     }
     std.debug.assert(inputs.len == self.inputSize * self.batchSize);
 
+    for (0..self.inputSize) |i| {
+        for (0..self.outputSize) |o| {
+            self.dropOut[self.outputSize * i + o] = prng.random().float(f64) < dropOutRate;
+        }
+    }
+
     var b: usize = 0;
     while (b < self.batchSize) : (b += 1) {
         var o: usize = 0;
@@ -99,7 +113,7 @@ pub fn forward(
             var sum: f64 = 0;
             var i: usize = 0;
             while (i < self.inputSize) : (i += 1) {
-                sum += inputs[b * self.inputSize + i] * self.weights[self.outputSize * i + o];
+                sum += inputs[b * self.inputSize + i] * self.weights[self.outputSize * i + o] * @as(f64, @floatFromInt(@intFromBool(self.dropOut[self.outputSize * i + o]))) * self.nodrop;
             }
             self.outputs[b * self.outputSize + o] = sum + self.biases[o];
         }
@@ -125,7 +139,8 @@ pub fn backwards(
             self.bias_grads[o] += grads[b * self.outputSize + o] / @as(f64, @floatFromInt(self.batchSize));
             var i: usize = 0;
             while (i < self.inputSize) : (i += 1) {
-                const w = (grads[b * self.outputSize + o] * self.last_inputs[b * self.inputSize + i]);
+                const drop = @as(f64, @floatFromInt(@intFromBool(self.dropOut[self.outputSize * i + o])));
+                const w = (grads[b * self.outputSize + o] * self.last_inputs[b * self.inputSize + i]) * drop;
 
                 const aw = self.average_weight_gradient[i * self.outputSize + o];
                 self.average_weight_gradient[i * self.outputSize + o] = aw + (smoothing * (w - aw));
@@ -133,20 +148,20 @@ pub fn backwards(
                 //const aw = self.average_weight_gradient[i * self.outputSize + o];
                 //const wdiff = w / std.math.sign(aw) * @max(0.00001, @abs(aw));
                 //const wadj = std.math.sign(wdiff) * std.math.pow(f64, @abs(wdiff), 1.5);
-                self.weight_grads[i * self.outputSize + o] += w / @as(f64, @floatFromInt(self.batchSize));
+                self.weight_grads[i * self.outputSize + o] += (w / @as(f64, @floatFromInt(self.batchSize))) * drop;
                 self.input_grads[b * self.inputSize + i] +=
-                    grads[b * self.outputSize + o] * self.weights[i * self.outputSize + o];
+                    grads[b * self.outputSize + o] * self.weights[i * self.outputSize + o] * drop;
             }
         }
     }
 }
 
-const GV = struct {
+const Stat = struct {
     range: f64,
     avg: f64,
 };
 
-fn GradientValues(arr: []f64) GV {
+fn stats(arr: []f64) Stat {
     var min: f64 = std.math.floatMax(f64);
     var max: f64 = -min;
     var sum: f64 = 0.000000001;
@@ -155,19 +170,18 @@ fn GradientValues(arr: []f64) GV {
         if (max < elem) max = elem;
         sum += elem;
     }
-    return GV{
+    return Stat{
         .range = @max(0.000000001, @abs(max - min)),
         .avg = sum / @as(f64, @floatFromInt(arr.len)),
     };
 }
-
-fn adjWeights(arr: []f64, gv: GV) []f64 {
-    const range = gv.range;
+const wy = 2;
+const wb = 1;
+fn adjWeights(arr: []f64) []f64 {
+    const gv = stats(arr);
     for (0..arr.len) |i| {
-        const v = ((arr[i] - gv.avg) / range * 2 + 1);
-        arr[i] = (std.math.sign(v) + 0.000000001) * @max(0.01, @abs(v));
-        if (std.math.sign(v) == 0)
-            std.debug.print("nan?{} ", .{v});
+        arr[i] = ((arr[i] - gv.avg) / gv.range);
+        //arr[i] = (std.math.sign(v) + 0.000000001) * @max(0.01, @abs(v));
     }
     return arr;
 }
@@ -183,8 +197,9 @@ pub fn applyGradients(self: *Self) void {
         const f = (w - wa) / wa;
         const c = avgPriority * @max(0.001, @abs(wa));
         const p = 1 / (1 / c + f) / c;
+
         _ = p;
-        self.weights[i] -= 0.01 * w; // * p;
+        self.weights[i] -= 0.01 * w; //* p;
 
         //self.weights[i] -= 0.0000001 * std.math.sign(self.weights[i]) * @abs(self.weights[i] * self.weights[i]);
         //if (@abs(self.weights[i]) < 0.0000001) {
@@ -192,11 +207,11 @@ pub fn applyGradients(self: *Self) void {
         //    self.average_weight_gradient[i] = prng.random().floatNorm(f64) * 0.2;
         //}
     }
-    const gv = GradientValues(self.weights);
-    self.weights = adjWeights(self.weight_grads, gv);
+    self.weights = adjWeights(self.weights);
 
     var o: usize = 0;
     while (o < self.outputSize) : (o += 1) {
         self.biases[o] -= 0.01 * self.bias_grads[o];
     }
+    self.biases = adjWeights(self.biases);
 }
