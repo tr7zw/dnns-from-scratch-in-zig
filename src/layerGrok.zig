@@ -27,6 +27,11 @@ pub fn readParams(self: *Self, params: anytype) !void {
     _ = try params.read(std.mem.sliceAsBytes(self.biases));
     _ = try params.read(std.mem.sliceAsBytes(self.average_weight_gradient));
 }
+pub fn writeParams(self: *Self, params: anytype) !void {
+    _ = try params.writeAll(std.mem.sliceAsBytes(self.weights));
+    _ = try params.writeAll(std.mem.sliceAsBytes(self.biases));
+    _ = try params.writeAll(std.mem.sliceAsBytes(self.average_weight_gradient));
+}
 var prng = std.Random.DefaultPrng.init(123);
 pub fn init(
     alloc: std.mem.Allocator,
@@ -71,6 +76,7 @@ pub fn deinitBackwards(self: *Self, alloc: std.mem.Allocator) void {
 
     //alloc.free(self.last_inputs);
     //alloc.free(self.outputs);
+    alloc.free(self.average_weight_gradient);
     alloc.free(self.weight_grads);
     alloc.free(self.bias_grads);
     alloc.free(self.input_grads);
@@ -136,8 +142,7 @@ pub fn backwards(
 }
 
 const GV = struct {
-    min: f64,
-    max: f64,
+    range: f64,
     avg: f64,
 };
 
@@ -151,14 +156,13 @@ fn GradientValues(arr: []f64) GV {
         sum += elem;
     }
     return GV{
-        .max = max,
-        .min = min,
+        .range = @max(0.000000001, @abs(max - min)),
         .avg = sum / @as(f64, @floatFromInt(arr.len)),
     };
 }
 
 fn adjWeights(arr: []f64, gv: GV) []f64 {
-    const range = @max(0.000000001, @abs(gv.max - gv.min));
+    const range = gv.range;
     for (0..arr.len) |i| {
         const v = ((arr[i] - gv.avg) / range * 2 + 1);
         arr[i] = (std.math.sign(v) + 0.000000001) * @max(0.01, @abs(v));

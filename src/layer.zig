@@ -15,10 +15,12 @@ pub fn setWeights(self: *Self, weights: []f64) void {
     self.weights = weights;
 }
 
-pub fn readWeights(self: *Self, weights: anytype) !void {
-    _ = try weights.read(std.mem.sliceAsBytes(self.weights));
+pub fn readParams(self: *Self, params: anytype) !void {
+    _ = try params.read(std.mem.sliceAsBytes(self.weights));
 }
-
+pub fn writeParams(self: *Self, params: anytype) !void {
+    _ = try params.writeAll(std.mem.sliceAsBytes(self.weights));
+}
 pub fn init(
     alloc: std.mem.Allocator,
     batchSize: usize,

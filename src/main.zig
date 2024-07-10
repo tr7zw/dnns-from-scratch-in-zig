@@ -97,14 +97,7 @@ pub fn main() !void {
         }
         if (readfile) {
             switch (storage[i].layer) {
-                .Layer => |*l| {
-                    try l.readWeights(&reader); //std.mem.bytesAsSlice(f64, try reader.read([size * previousLayerSize * 4]u8{})));
-                },
-                .LayerB => |*l| {
-                    try l.readWeights(&reader);
-                    try l.readBiases(&reader);
-                },
-                .LayerG => |*l| {
+                inline else => |*l| {
                     try l.readParams(&reader);
                 },
             }
@@ -133,22 +126,10 @@ pub fn main() !void {
             },
         );
         defer filew.close();
-        for (k) |l| {
-            switch (l.layer) {
-                .Layer => |la| {
-                    //try params.appendSlice(std.fmt.comptimePrint("wi{}o{}\n", .{ la.inputSize, la.outputSize }));
-                    try filew.writeAll(std.mem.sliceAsBytes(la.weights));
-                },
-                .LayerB => |la| {
-                    //try params.appendSlice(std.fmt.comptimePrint("wbi{}o{}\n", .{ la.inputSize, la.outputSize }));
-                    try filew.writeAll(std.mem.sliceAsBytes(la.weights));
-                    try filew.writeAll(std.mem.sliceAsBytes(la.biases));
-                },
-                .LayerG => |la| {
-                    //try params.appendSlice(std.fmt.comptimePrint("wbi{}o{}\n", .{ la.inputSize, la.outputSize }));
-                    try filew.writeAll(std.mem.sliceAsBytes(la.weights));
-                    try filew.writeAll(std.mem.sliceAsBytes(la.biases));
-                    try filew.writeAll(std.mem.sliceAsBytes(la.average_weight_gradient));
+        for (0..k.len) |l| {
+            switch (k[l].layer) {
+                inline else => |*la| {
+                    try la.writeParams(filew);
                 },
             }
         }
