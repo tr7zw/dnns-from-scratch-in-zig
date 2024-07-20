@@ -9,14 +9,19 @@ const gaussian = @import("gaussian.zig");
 
 const std = @import("std");
 const timer = false;
+
 const readfile = true;
 const writeFile = true;
 
-const typesignature = "G25RRRR_G10G.f64";
+const typesignature = "G25RRRR_G10R.f64";
 
 const graphfuncs = false;
 
+const epoch = 100;
+//todo perlayer configs
+
 pub fn main() !void {
+    const batchSize = 100;
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
     const allocator = gpa.allocator();
@@ -49,7 +54,6 @@ pub fn main() !void {
 
     const inputSize = 784;
     const outputSize = 10;
-    const batchSize = 100;
     const testImageCount = 10000;
     const layers = [_]layerDescriptor{ .{
         .layer = .{ .LayerG = 25 },
@@ -65,7 +69,7 @@ pub fn main() !void {
         .activation = .relu,
     }, .{
         .layer = .{ .LayerG = 10 },
-        .activation = .gaussian,
+        .activation = .relu,
     } };
     comptime var previousLayerSize = inputSize;
     var storage: [layers.len]layerStorage = undefined;
@@ -97,6 +101,10 @@ pub fn main() !void {
         }
         if (readfile) {
             switch (storage[i].layer) {
+                .LayerG => |*l| {
+                    try l.readParams(&reader);
+                    l.reinit();
+                },
                 inline else => |*l| {
                     try l.readParams(&reader);
                 },
@@ -113,7 +121,7 @@ pub fn main() !void {
         inputSize,
         10,
         batchSize,
-        40,
+        epoch,
         allocator,
     );
 
@@ -191,7 +199,8 @@ fn layerFromDescriptor(alloc: std.mem.Allocator, comptime desc: layerDescriptor,
         ),
     };
     const layerType = switch (desc.layer) {
-        .Layer => Layer{ .Layer = ltt },
+        .Layer,
+        => Layer{ .Layer = ltt },
         .LayerB => Layer{ .LayerB = ltt },
         .LayerG => Layer{ .LayerG = ltt },
     };
@@ -251,6 +260,17 @@ pub fn Neuralnet(
     // Do training
     var e: usize = 0;
     while (e < epochs) : (e += 1) {
+        //if (e % 50 == 0) {
+        //    std.debug.print("Reinit \n", .{});
+        //    for (storage, 0..) |_, i| {
+        //        switch (storage[i].layer) {
+        //            .LayerG => |*l| {
+        //                l.reinit();
+        //            },
+        //            else => {},
+        //        }
+        //    }
+        //}
         // Do training
         var i: usize = 0;
         while (i < 60000 / batchSize) : (i += 1) {
@@ -277,7 +297,7 @@ pub fn Neuralnet(
                     },
                 }
             }
-            //if (e > 20 and i % (1000 / batchSize) == 1) {
+            //if (i % (60000 / batchSize) == 1) {
             //    std.debug.print("{any}\n", .{
             //        averageArray(loss.loss),
             //    });

@@ -24,11 +24,9 @@ pub fn NLL(
             };
         }
         pub fn nll(self: *Self, inputs: []f64, targets: []u8) !void {
-            var b: usize = 0;
-            while (b < self.batchSize) : (b += 1) {
+            for (0..self.batchSize) |b| {
                 var sum: f64 = 0;
-                var i: usize = 0;
-                while (i < inputSize) : (i += 1) {
+                for (0..inputSize) |i| {
                     sum += std.math.exp(inputs[b * inputSize + i]);
                     if (sum == std.math.inf(f64)) {
                         std.debug.print("output with inf:\n {any},\n", .{
@@ -52,8 +50,7 @@ pub fn NLL(
                 if (GiveLoss) {
                     self.loss[b] = -1 * @log(std.math.exp(inputs[b * inputSize + targets[b]]) / sum);
                 }
-                i = 0;
-                while (i < inputSize) : (i += 1) {
+                for (0..inputSize) |i| {
                     self.input_grads[b * inputSize + i] = std.math.exp(inputs[b * inputSize + i]) / sum;
                     if (i == targets[b]) {
                         self.input_grads[b * inputSize + i] -= 1;
