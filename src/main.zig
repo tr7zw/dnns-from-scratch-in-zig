@@ -10,7 +10,7 @@ const gaussian = @import("gaussian.zig");
 const std = @import("std");
 const timer = false;
 
-const readfile = true;
+const readfile = false;
 const writeFile = true;
 
 const typesignature = "G25RRRR_G10R.f64";

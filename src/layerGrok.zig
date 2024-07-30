@@ -89,12 +89,11 @@ pub fn init(
     for (0..outputSize) |b| {
         biases[b] = prng.random().floatNorm(f64) * 0.2;
     }
-    var wg = try alloc.alloc(f64, inputSize * outputSize);
-    for (0..inputSize * outputSize) |b| {
-        wg[b] = prng.random().floatNorm(f64) * 0.2;
-    }
-
-    @memset(wg, 1);
+    const wg = try alloc.alloc(f64, inputSize * outputSize);
+    //for (0..inputSize * outputSize) |b| {
+    //    wg[b] = prng.random().floatNorm(f64) * 0.2;
+    //}
+    @memcpy(wg, weights);
     return Self{
         .dropOut = try alloc.alloc(bool, inputSize * outputSize),
         .weights = weights,
@@ -108,7 +107,7 @@ pub fn init(
         .batchSize = batchSize,
         .outputSize = outputSize,
         .inputSize = inputSize,
-        .rounds = batchdropskip + 1,
+        .rounds = -60000 / 100,
         .nodrop = 1.0,
     };
 }
@@ -154,7 +153,7 @@ pub fn forward(
             var i: usize = 0;
             while (i < self.inputSize) : (i += 1) {
                 const d = 1.0; // if (usedrop) 1.0 else @as(f64, @floatFromInt(@intFromBool(self.dropOut[self.outputSize * i + o]))) * self.nodrop;
-                sum += d * inputs[b * self.inputSize + i] * self.weights[self.outputSize * i + o];
+                sum += d * inputs[b * self.inputSize + i] * self.weights[i + self.inputSize * o];
             }
             self.outputs[b * self.outputSize + o] = sum + self.biases[o];
         }
@@ -162,7 +161,6 @@ pub fn forward(
     self.last_inputs = inputs;
 }
 
-const smoothing = 0.01;
 pub fn backwards(
     self: *Self,
     grads: []f64,
@@ -192,9 +190,9 @@ pub fn backwards(
                 //const wadj = std.math.sign(wdiff) * std.math.pow(f64, @abs(wdiff), 1.5);
                 //_ = wadj;
                 //todo scale by variance of weight grad
-                self.weight_grads[i * self.outputSize + o] += (w / @as(f64, @floatFromInt(self.batchSize))); // * wadj; //  * drop;
+                self.weight_grads[i + self.inputSize * o] += (w / @as(f64, @floatFromInt(self.batchSize))); // * wadj; //  * drop;
                 self.input_grads[b * self.inputSize + i] +=
-                    grads[b * self.outputSize + o] * self.weights[i * self.outputSize + o]; //  * drop;
+                    grads[b * self.outputSize + o] * self.weights[i + self.inputSize * o]; //  * drop;
                 //}
             }
         }
@@ -233,7 +231,9 @@ fn normalize(arr: []f64, multi: f64, bias: f64, alpha: f64) []f64 {
     return arr;
 }
 
-const avgPriority = 10;
+const roundsPerEp = 60000 / 100;
+const avgPriority = 100;
+const smoothing = 1 / avgPriority;
 //todo gradient average replaced with just .5 to see if it seems similar with regression values.
 const lr = 0.001;
 const normlr = lr / 10.0;
@@ -247,6 +247,12 @@ pub fn applyGradients(self: *Self) void {
     self.normBias -= bavg * normlr;
     //todo: check for sanity?
 
+    self.rounds += 1.0;
+    if (self.rounds < -1 and self.rounds >= -3)
+        @memcpy(self.average_weight_gradient, self.weights);
+    if (self.rounds >= roundsPerEp * 2)
+        self.rounds = 0.0;
+
     for (0..self.inputSize * self.outputSize) |i| {
         const l2 = lambda * self.weights[i];
         const l1 = lambda * std.math.sign(self.weights[i]);
@@ -258,9 +264,12 @@ pub fn applyGradients(self: *Self) void {
         //weight average, use with lambda?
         //nudge towards it with \/ ?
 
-        //const ga = (std.math.sign(self.average_weight_gradient[i]) + 0.000001) * @max(0.000001, @abs(self.average_weight_gradient[i]));
-        //const f = (g - ga) / ga;
-        //const c = avgPriority * @max(0.001, @abs(ga));
+        //const aw = (std.math.sign(self.average_weight_gradient[i]) + 0.000001) * @max(0.000001, @abs(self.average_weight_gradient[i]));
+        //const aw = self.average_weight_gradient[i];
+        //self.average_weight_gradient[i] = aw + (smoothing * (self.weights[i] - aw));
+        //const w = self.weights[i] - lr * g;
+        //const f = (w - aw) / aw;
+        //const c = avgPriority * @max(0.001, @abs(aw));
         //const p = 1 / (1 / c + f) / c;
         //
         //_ = p;
@@ -270,9 +279,16 @@ pub fn applyGradients(self: *Self) void {
         //const gadj = std.math.sign(gdiff) * std.math.pow(f64, @abs(gdiff), 1.5);
         //_ = gadj; doesn't work.
 
-        self.weights[i] -= lr * g; //* gadj; //* p;
+        self.weights[i] -= lr * g; // * p; //* gadj; //* p;
+
+        //if (self.rounds >= roundsPerEp)
+        //    self.weights[i] -= lr * (self.weights[i] - self.average_weight_gradient[i]);
+        ////const aw =  (std.math.sign(self.average_weight_gradient[i]) + 0.000001) * @max(0.000001, @abs(self.average_weight_gradient[i]));
+        //const aw = self.average_weight_gradient[i];
+        //self.average_weight_gradient[i] = aw + (smoothing * (self.weights[i] - aw));
     }
-    self.weights = normalize(self.weights, self.normMulti, self.normBias, 0.00001);
+
+    //self.weights = normalize(self.weights, self.normMulti, self.normBias, 0.00001);
 
     for (0..self.outputSize) |o| {
         self.biases[o] -= lr * self.bias_grads[o]; // (self.bias_grads[o] + lambda * self.biases[o]);
