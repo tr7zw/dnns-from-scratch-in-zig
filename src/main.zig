@@ -10,14 +10,15 @@ const gaussian = @import("gaussian.zig");
 const std = @import("std");
 const timer = false;
 
-const readfile = false;
+const readfile = true;
 const writeFile = true;
 
 const typesignature = "G25RRRR_G10R.f64";
 
 const graphfuncs = false;
+const reinit = false;
 
-const epoch = 100;
+const epoch = 200;
 //todo perlayer configs
 
 pub fn main() !void {
@@ -103,7 +104,9 @@ pub fn main() !void {
             switch (storage[i].layer) {
                 .LayerG => |*l| {
                     try l.readParams(&reader);
-                    l.reinit();
+                    if (reinit) {
+                        l.reinit();
+                    }
                 },
                 inline else => |*l| {
                     try l.readParams(&reader);

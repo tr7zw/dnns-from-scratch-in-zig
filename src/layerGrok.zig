@@ -8,7 +8,7 @@ biases: []f64,
 last_inputs: []const f64,
 outputs: []f64,
 weight_grads: []f64,
-average_weight_gradient: []f64,
+averageWeights: []f64,
 bias_grads: []f64,
 input_grads: []f64,
 batchSize: usize,
@@ -38,7 +38,7 @@ pub fn readParams(self: *Self, params: anytype) !void {
     _ = try params.read(std.mem.sliceAsBytes(self.weights));
     _ = try params.read(std.mem.sliceAsBytes(self.biases));
 
-    _ = try params.read(std.mem.sliceAsBytes(self.average_weight_gradient));
+    _ = try params.read(std.mem.sliceAsBytes(self.averageWeights));
     _ = try params.read(std.mem.asBytes(&self.normMulti));
     _ = try params.read(std.mem.asBytes(&self.normBias));
 }
@@ -46,7 +46,7 @@ pub fn writeParams(self: *Self, params: anytype) !void {
     _ = try params.writeAll(std.mem.sliceAsBytes(self.weights));
     _ = try params.writeAll(std.mem.sliceAsBytes(self.biases));
 
-    _ = try params.writeAll(std.mem.sliceAsBytes(self.average_weight_gradient));
+    _ = try params.writeAll(std.mem.sliceAsBytes(self.averageWeights));
     _ = try params.writeAll(std.mem.asBytes(&self.normMulti));
     _ = try params.writeAll(std.mem.asBytes(&self.normBias));
 }
@@ -59,13 +59,17 @@ pub fn reinit(self: *Self) void {
     for (0..self.inputSize * self.outputSize) |w| {
         const sqrI = @sqrt(2.0 / @as(f64, @floatFromInt(self.inputSize)));
         const dev = wa.range * sqrI;
-        self.weights[w] = (wa.avg / 2.95) + prng.random().floatNorm(f64) * dev;
+        self.weights[w] = (wa.avg / 2.0) + prng.random().floatNorm(f64) * dev;
 
         //const rand = prng.random().floatNorm(f64);
         //self.weights[w] = std.math.sign(rand) * wa.avgabs + rand * dev; //0 ring.
 
         //todo: try kill avg
     }
+
+    @memcpy(self.averageWeights, self.weights);
+    //todo: try with and without.
+
     for (0..self.outputSize) |b| {
         self.biases[b] = prng.random().floatNorm(f64) * 0.2;
     }
@@ -101,7 +105,7 @@ pub fn init(
         .last_inputs = undefined,
         .outputs = try alloc.alloc(f64, outputSize * batchSize),
         .weight_grads = try alloc.alloc(f64, inputSize * outputSize),
-        .average_weight_gradient = wg,
+        .averageWeights = wg,
         .bias_grads = try alloc.alloc(f64, outputSize),
         .input_grads = try alloc.alloc(f64, inputSize * batchSize),
         .batchSize = batchSize,
@@ -117,7 +121,7 @@ pub fn deinitBackwards(self: *Self, alloc: std.mem.Allocator) void {
     //alloc.free(self.last_inputs);
     //alloc.free(self.outputs);
     self.nodrop = scale;
-    alloc.free(self.average_weight_gradient);
+    alloc.free(self.averageWeights);
     alloc.free(self.weight_grads);
     alloc.free(self.bias_grads);
     alloc.free(self.input_grads);
@@ -232,8 +236,8 @@ fn normalize(arr: []f64, multi: f64, bias: f64, alpha: f64) []f64 {
 }
 
 const roundsPerEp = 60000 / 100;
-const avgPriority = 100;
-const smoothing = 1 / avgPriority;
+const avgPriority = 0.5; // nonzero;
+const smoothing = 0.0001;
 //todo gradient average replaced with just .5 to see if it seems similar with regression values.
 const lr = 0.001;
 const normlr = lr / 10.0;
@@ -248,8 +252,8 @@ pub fn applyGradients(self: *Self) void {
     //todo: check for sanity?
 
     self.rounds += 1.0;
-    if (self.rounds < -1 and self.rounds >= -3)
-        @memcpy(self.average_weight_gradient, self.weights);
+    //if (self.rounds < -1 and self.rounds >= -3)
+    //@memcpy(self.average_weight_gradient, self.weights);
     if (self.rounds >= roundsPerEp * 2)
         self.rounds = 0.0;
 
@@ -279,13 +283,22 @@ pub fn applyGradients(self: *Self) void {
         //const gadj = std.math.sign(gdiff) * std.math.pow(f64, @abs(gdiff), 1.5);
         //_ = gadj; doesn't work.
 
-        self.weights[i] -= lr * g; // * p; //* gadj; //* p;
+        const awdiff = self.averageWeights[i] - self.weights[i];
+        const gdiff = 1.0 / (avgPriority + @abs(g - awdiff));
+
+        //debounce
+        //const adj = if (@abs(lr * g * gdiff) > @abs(awdiff))
+        //    1.0
+        //else
+        //    gdiff;
+
+        self.weights[i] -= lr * g * gdiff; // * p; //* gadj; //* p;
 
         //if (self.rounds >= roundsPerEp)
         //    self.weights[i] -= lr * (self.weights[i] - self.average_weight_gradient[i]);
         ////const aw =  (std.math.sign(self.average_weight_gradient[i]) + 0.000001) * @max(0.000001, @abs(self.average_weight_gradient[i]));
-        //const aw = self.average_weight_gradient[i];
-        //self.average_weight_gradient[i] = aw + (smoothing * (self.weights[i] - aw));
+        const aw = self.averageWeights[i];
+        self.averageWeights[i] = aw + (smoothing * (self.weights[i] - aw));
     }
 
     //self.weights = normalize(self.weights, self.normMulti, self.normBias, 0.00001);
