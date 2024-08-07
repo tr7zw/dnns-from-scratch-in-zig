@@ -26,8 +26,13 @@ pub fn NLL(
         pub fn nll(self: *Self, inputs: []f64, targets: []u8) !void {
             for (0..self.batchSize) |b| {
                 var sum: f64 = 0;
+                var maxInput: f64 = -std.math.inf(f64);
+                // Find the maximum value in the inputs for the current batch
                 for (0..inputSize) |i| {
-                    sum += std.math.exp(inputs[b * inputSize + i]);
+                    maxInput = @max(maxInput, inputs[b * inputSize + i]);
+                }
+                for (0..inputSize) |i| {
+                    sum += std.math.exp(inputs[b * inputSize + i] - maxInput);
                     if (sum == std.math.inf(f64)) {
                         std.debug.print("output with inf:\n {any},\n", .{
                             inputs[b * inputSize + i],
@@ -51,7 +56,7 @@ pub fn NLL(
                     self.loss[b] = -1 * @log(std.math.exp(inputs[b * inputSize + targets[b]]) / sum);
                 }
                 for (0..inputSize) |i| {
-                    self.input_grads[b * inputSize + i] = std.math.exp(inputs[b * inputSize + i]) / sum;
+                    self.input_grads[b * inputSize + i] = std.math.exp(inputs[b * inputSize + i] - maxInput) / sum;
                     if (i == targets[b]) {
                         self.input_grads[b * inputSize + i] -= 1;
                     }

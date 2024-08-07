@@ -52,22 +52,36 @@ pub fn writeParams(self: *Self, params: anytype) !void {
 }
 var prng = std.Random.DefaultPrng.init(123);
 
-pub fn reinit(self: *Self) void {
+pub fn reinit(self: *Self, percent: f64) void {
     const wa = stats(self.weights);
     //const ba = stats(self.biases);
+    //if (usedrop) {
+    //    self.rounds += 1.0;
+    //    if (self.rounds >= batchdropskip) {
+    //        //std.debug.print("round 10", .{});
+    //        self.rounds = 0.0; //todo move from being perbatch to per epoch, etc.
+    //        for (0..self.inputSize) |i| {
+    //            for (0..self.outputSize) |o| {
+    //                //const d: f64 = @as(f64, @floatFromInt(self.outputSize * i + o + 1)) / @as(f64, @floatFromInt(self.outputSize * self.inputSize));
+    //                self.dropOut[self.outputSize * i + o] = prng.random().float(f64) >= dropOutRate; // / (d * 2);
+    //            }
+    //        }
+    //    }
+    //}
     //std.debug.print("stats: {any}", .{wa});
     for (0..self.inputSize * self.outputSize) |w| {
         const sqrI = @sqrt(2.0 / @as(f64, @floatFromInt(self.inputSize)));
-        const dev = wa.range * sqrI;
-        self.weights[w] = (wa.avg / 2.0) + prng.random().floatNorm(f64) * dev;
+        const dev = wa.range * sqrI * percent;
+        self.weights[w] = (self.averageWeights[w]) + prng.random().floatNorm(f64) * dev;
 
+        //self.weights[w] = (wa.avg/ 2) + prng.random().floatNorm(f64) * dev;
         //const rand = prng.random().floatNorm(f64);
         //self.weights[w] = std.math.sign(rand) * wa.avgabs + rand * dev; //0 ring.
 
         //todo: try kill avg
     }
 
-    @memcpy(self.averageWeights, self.weights);
+    //@memcpy(self.averageWeights, self.weights);
     //todo: try with and without.
 
     for (0..self.outputSize) |b| {
@@ -236,10 +250,9 @@ fn normalize(arr: []f64, multi: f64, bias: f64, alpha: f64) []f64 {
 }
 
 const roundsPerEp = 60000 / 100;
-const avgPriority = 0.5; // nonzero;
-const smoothing = 0.0001;
+const smoothing = 0.00001;
 //todo gradient average replaced with just .5 to see if it seems similar with regression values.
-const lr = 0.001;
+const lr = 0.00001;
 const normlr = lr / 10.0;
 //best on its own: 0.0075;
 const lambda = 0.0075;
@@ -252,10 +265,11 @@ pub fn applyGradients(self: *Self) void {
     //todo: check for sanity?
 
     self.rounds += 1.0;
+
     //if (self.rounds < -1 and self.rounds >= -3)
     //@memcpy(self.average_weight_gradient, self.weights);
-    if (self.rounds >= roundsPerEp * 2)
-        self.rounds = 0.0;
+    //if (self.rounds >= roundsPerEp * 2)
+    //    self.rounds = 0.0;
 
     for (0..self.inputSize * self.outputSize) |i| {
         const l2 = lambda * self.weights[i];
@@ -268,43 +282,24 @@ pub fn applyGradients(self: *Self) void {
         //weight average, use with lambda?
         //nudge towards it with \/ ?
 
-        //const aw = (std.math.sign(self.average_weight_gradient[i]) + 0.000001) * @max(0.000001, @abs(self.average_weight_gradient[i]));
-        //const aw = self.average_weight_gradient[i];
-        //self.average_weight_gradient[i] = aw + (smoothing * (self.weights[i] - aw));
-        //const w = self.weights[i] - lr * g;
-        //const f = (w - aw) / aw;
-        //const c = avgPriority * @max(0.001, @abs(aw));
-        //const p = 1 / (1 / c + f) / c;
-        //
-        //_ = p;
-
-        //const ga = self.average_weight_gradient[i];
-        //const gdiff = g / ga;
-        //const gadj = std.math.sign(gdiff) * std.math.pow(f64, @abs(gdiff), 1.5);
-        //_ = gadj; doesn't work.
-
         const awdiff = self.averageWeights[i] - self.weights[i];
-        const gdiff = 1.0 / (avgPriority + @abs(g - awdiff));
-
-        //debounce
-        //const adj = if (@abs(lr * g * gdiff) > @abs(awdiff))
-        //    1.0
-        //else
-        //    gdiff;
-
+        //const crossover = std.math.clamp(1.0 - ((g * lr - awdiff * avgPriority)), 0.0, 1.0);
+        const gdiff = 1.0 / (0.5 + @abs(g - awdiff));
+        //const gdiff = 1.0 / (avgPriority + @abs(g - awdiff));
         self.weights[i] -= lr * g * gdiff; // * p; //* gadj; //* p;
 
-        //if (self.rounds >= roundsPerEp)
-        //    self.weights[i] -= lr * (self.weights[i] - self.average_weight_gradient[i]);
-        ////const aw =  (std.math.sign(self.average_weight_gradient[i]) + 0.000001) * @max(0.000001, @abs(self.average_weight_gradient[i]));
         const aw = self.averageWeights[i];
         self.averageWeights[i] = aw + (smoothing * (self.weights[i] - aw));
     }
 
-    //self.weights = normalize(self.weights, self.normMulti, self.normBias, 0.00001);
+    //self.weights = normalize(self.weights, self.normMulti, self.normBias, 0.0001);
 
     for (0..self.outputSize) |o| {
         self.biases[o] -= lr * self.bias_grads[o]; // (self.bias_grads[o] + lambda * self.biases[o]);
     }
-    //self.biases = normalize(self.biases, self.normMulti, self.normBias, 0.01);
+    if (self.rounds >= roundsPerEp * 100) {
+        self.rounds = 0.0;
+        self.reinit(0.001);
+    }
+    self.biases = normalize(self.biases, self.normMulti, self.normBias, 0.01);
 }

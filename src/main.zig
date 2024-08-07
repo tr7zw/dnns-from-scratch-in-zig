@@ -16,9 +16,9 @@ const writeFile = true;
 const typesignature = "G25RRRR_G10R.f64";
 
 const graphfuncs = false;
-const reinit = false;
+const reinit = true;
 
-const epoch = 200;
+const epoch = 1000;
 //todo perlayer configs
 
 pub fn main() !void {
@@ -105,7 +105,7 @@ pub fn main() !void {
                 .LayerG => |*l| {
                     try l.readParams(&reader);
                     if (reinit) {
-                        l.reinit();
+                        l.reinit(0.000);
                     }
                 },
                 inline else => |*l| {
