@@ -9,8 +9,27 @@ javac src/*.java
 java -cp src Main
 ```
 
-If the above url is not working for you, checkout: [https://github.com/cvdfoundation/mnist](https://github.com/cvdfoundation/mnist).
+If the above url is not working for you, checkout: [https://github.com/cvdfoundation/mnist](https://github.com/cvdfoundation/mnist/).
 
+## Maven Build Instructions
+
+To build and run the project using Maven, follow these steps:
+
+1. Ensure you have Maven installed on your system. You can download it from [https://maven.apache.org/download.cgi](https://maven.apache.org/download.cgi).
+
+2. Open a terminal and navigate to the root directory of the project.
+
+3. Run the following command to compile the project:
+
+```
+mvn compile
+```
+
+4. To run the project, use the following command:
+
+```
+mvn exec:java -Dexec.mainClass="Main"
+```
 
 here's some benchmark results from fiddling with hyper parameters etc 
 [spreadsheet](https://docs.google.com/spreadsheets/d/1825onhH1uPmXJjqjOOZLDkHyJ_BaYP1LKGJzq5vDf4s/edit?usp=sharing)
