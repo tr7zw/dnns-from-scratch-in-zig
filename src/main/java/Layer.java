@@ -3,9 +3,9 @@ import java.util.Random;
 public class Layer {
     private double[] weights;
     private double[] lastInputs;
-    private double[] outputs;
+    public double[] outputs;
     private double[] weightGrads;
-    private double[] inputGrads;
+    public double[] input_grads;
     private int batchSize;
     private int inputSize;
     private int outputSize;
@@ -17,7 +17,7 @@ public class Layer {
         this.weights = new double[inputSize * outputSize];
         this.outputs = new double[outputSize * batchSize];
         this.weightGrads = new double[inputSize * outputSize];
-        this.inputGrads = new double[inputSize * batchSize];
+        this.input_grads = new double[inputSize * batchSize];
         Random prng = new Random(123);
         for (int i = 0; i < inputSize * outputSize; i++) {
             weights[i] = prng.nextGaussian() * 0.2;
@@ -26,6 +26,10 @@ public class Layer {
 
     public void setWeights(double[] weights) {
         this.weights = weights;
+    }
+
+    public double[] getWeights() {
+        return this.weights;
     }
 
     public void readParams(java.io.DataInputStream params) throws java.io.IOException {
@@ -60,13 +64,13 @@ public class Layer {
 
     public void backwards(double[] grads) {
         assert lastInputs.length == inputSize * batchSize;
-        java.util.Arrays.fill(inputGrads, 0);
+        java.util.Arrays.fill(input_grads, 0);
         java.util.Arrays.fill(weightGrads, 0);
         for (int b = 0; b < batchSize; b++) {
             for (int i = 0; i < inputSize; i++) {
                 for (int o = 0; o < outputSize; o++) {
                     weightGrads[i * outputSize + o] += (grads[b * outputSize + o] * lastInputs[b * inputSize + i]) / batchSize;
-                    inputGrads[b * inputSize + i] += grads[b * outputSize + o] * weights[i * outputSize + o];
+                    input_grads[b * inputSize + i] += grads[b * outputSize + o] * weights[i * outputSize + o];
                 }
             }
         }
@@ -75,6 +79,17 @@ public class Layer {
     public void applyGradients() {
         for (int i = 0; i < inputSize * outputSize; i++) {
             weights[i] -= 0.01 * weightGrads[i];
+        }
+    }
+
+    public int getSize() {
+        return this.outputSize;
+    }
+
+    public void reinit(double percent) {
+        Random prng = new Random(123);
+        for (int i = 0; i < inputSize * outputSize; i++) {
+            weights[i] = prng.nextGaussian() * 0.2 * percent;
         }
     }
 }

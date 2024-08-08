@@ -37,17 +37,29 @@ public class LayerGrok {
     }
 
     public void readParams(java.io.DataInputStream params) throws java.io.IOException {
-        params.readFully(this.weights);
-        params.readFully(this.biases);
-        params.readFully(this.averageWeights);
+        for (int i = 0; i < weights.length; i++) {
+            weights[i] = params.readDouble();
+        }
+        for (int i = 0; i < biases.length; i++) {
+            biases[i] = params.readDouble();
+        }
+        for (int i = 0; i < averageWeights.length; i++) {
+            averageWeights[i] = params.readDouble();
+        }
         this.normMulti = params.readDouble();
         this.normBias = params.readDouble();
     }
 
     public void writeParams(java.io.DataOutputStream params) throws java.io.IOException {
-        params.write(this.weights);
-        params.write(this.biases);
-        params.write(this.averageWeights);
+        for (double weight : weights) {
+            params.writeDouble(weight);
+        }
+        for (double bias : biases) {
+            params.writeDouble(bias);
+        }
+        for (double avgWeight : averageWeights) {
+            params.writeDouble(avgWeight);
+        }
         params.writeDouble(this.normMulti);
         params.writeDouble(this.normBias);
     }
