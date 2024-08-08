@@ -150,6 +150,10 @@ public class LayerGrok {
         }
     }
 
+    public double[] getInputGrads() {
+        return this.inputGrads;
+    }
+
     private static class Stat {
         double range;
         double avg;
@@ -203,7 +207,7 @@ public class LayerGrok {
             double l2 = lambda * this.weights[i];
             double l1 = lambda * Math.signum(this.weights[i]);
 
-            double EN = Math.lerp(l2, l1, elasticAlpha);
+            double EN = lerp(l2, l1, elasticAlpha);
             double g = this.weightGrads[i] + EN;
 
             double awdiff = this.averageWeights[i] - this.weights[i];
@@ -224,5 +228,9 @@ public class LayerGrok {
         }
 
         this.biases = normalize(this.biases, this.normMulti, this.normBias, 0.01);
+    }
+
+    public static double lerp(double a, double b, double t) {
+        return a + t * (b - a);
     }
 }

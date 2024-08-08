@@ -27,7 +27,7 @@ public class Main {
             pyr.forward(inputs);
             pyr.backwards(inputs);
             for (int i = 0; i < inputs.length; i++) {
-                System.out.printf("%.4f,%.4f,%.4f%n", inputs[i], Gaussian.leaky_gaussian(inputs[i]), Gaussian.leaky_gaussian_derivative(inputs[i]));
+                System.out.printf("%.4f,%.4f,%.4f%n", inputs[i], Gaussian.leakyGaussian(inputs[i]), Gaussian.leakyGaussianDerivative(inputs[i]));
             }
         }
 
@@ -46,7 +46,7 @@ public class Main {
         LayerStorage[] storage = new LayerStorage[layers.length];
         LayerStorage[] validationStorage = new LayerStorage[layers.length];
 
-        try (BufferedReader reader = Files.newBufferedReader(filePath)) {
+        try (DataInputStream reader = new DataInputStream(new FileInputStream(file))) {
             for (int i = 0; i < layers.length; i++) {
                 int size = layers[i].layer.getSize();
                 storage[i] = layerFromDescriptor(layers[i], batchSize, previousLayerSize);
@@ -66,7 +66,7 @@ public class Main {
         Neuralnet(validationStorage, storage, inputSize, outputSize, batchSize, epoch);
 
         if (writeFile) {
-            try (BufferedWriter writer = Files.newBufferedWriter(filePath)) {
+            try (DataOutputStream writer = new DataOutputStream(new FileOutputStream(file))) {
                 for (LayerStorage layerStorage : storage) {
                     layerStorage.layer.writeParams(writer);
                 }
@@ -75,7 +75,7 @@ public class Main {
     }
 
     static LayerStorage layerFromDescriptor(LayerDescriptor desc, int batchSize, int inputSize) {
-        Layer layer = desc.layer.init(batchSize, inputSize, desc.layer.getSize());
+        LayerGrok layer = LayerGrok.init(batchSize, inputSize, desc.layer.getSize());
         Activation activation = switch (desc.activation) {
             case RELU -> new ReLU(batchSize, desc.layer.getSize());
             case PYRAMID -> new Pyramid(batchSize, desc.layer.getSize());
@@ -181,10 +181,10 @@ public class Main {
 }
 
 class LayerDescriptor {
-    Layer layer;
+    LayerGrok layer;
     ActivationType activation;
 
-    LayerDescriptor(Layer layer, ActivationType activation) {
+    LayerDescriptor(LayerGrok layer, ActivationType activation) {
         this.layer = layer;
         this.activation = activation;
     }
@@ -195,10 +195,10 @@ enum ActivationType {
 }
 
 class LayerStorage {
-    Layer layer;
+    LayerGrok layer;
     Activation activation;
 
-    LayerStorage(Layer layer, Activation activation) {
+    LayerStorage(LayerGrok layer, Activation activation) {
         this.layer = layer;
         this.activation = activation;
     }
@@ -208,8 +208,8 @@ interface Layer {
     void forward(double[] inputs);
     void backwards(double[] grads);
     void applyGradients();
-    void readParams(BufferedReader reader) throws IOException;
-    void writeParams(BufferedWriter writer) throws IOException;
+    void readParams(DataInputStream reader) throws IOException;
+    void writeParams(DataOutputStream writer) throws IOException;
     void deinitBackwards();
     void setWeights(double[] weights);
     double[] getWeights();
